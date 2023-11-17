@@ -56,36 +56,55 @@ gui.add(sphereMesh.scale, 'x',  0, 2).name('Sphere Radius');*/
 
 let eye_set = {
     eye_radius : 50,
-    particle_number : 1000,
+    particle_number : 200,
     particle_color : 0xffffff,
     particle_size : 0.5
 }
 
-let eye_geom = new THREE.BufferGeometry();
-const eye_vert = [];
-const eye_theta = [];
-const eye_phi = [];
-
-for (let i = 0; i < eye_set.particle_number; i++) {
-  let theta = THREE.MathUtils.randFloat(0.25, 0.4); //0.3-2.5
-  let phi = THREE.MathUtils.randFloatSpread(2*Math.PI);
-
-  eye_theta[i] = theta;
-  eye_phi[i] = phi;
-
-  const x = eye_set.eye_radius * Math.sin(theta) * Math.cos(phi);
-  const y = eye_set.eye_radius * Math.sin(theta) * Math.sin(phi);
-  const z = eye_set.eye_radius * Math.cos(theta);
-
-  eye_vert.push(x,y,z);
+let line_set = {
+    n_vertex: 100,
+    color: 0xffffff,
+    width: 5,
 }
 
-console.log(eye_vert);
+const line_colors = new Float32Array([
+    1.0, 1.0, 1.0,
+    0.0, 0.0, 0.0
+]);
+/* const eye_vert = [];
+const eye_theta = [];
+const eye_phi = []; */
 
-eye_geom.setAttribute('position', new THREE.Float32BufferAttribute(eye_vert, 3));
-const eye_mat = new THREE.PointsMaterial({color: eye_set.particle_color, size: eye_set.particle_size});
-const eye_part = new THREE.Points(eye_geom, eye_mat);
-scene.add(eye_part);
+const eye_lines = [];
+
+for (let i = 0; i < eye_set.particle_number; i++) {
+    let eye_geom = new THREE.BufferGeometry();
+    const line_vert = [];
+    let theta = THREE.MathUtils.randFloat(0.25, 0.4); //0.3-2.5
+    let phi = THREE.MathUtils.randFloatSpread(2*Math.PI);
+    for(let j = 0; j < line_set.n_vertex; j++){
+        let new_theta = theta + THREE.MathUtils.randFloat(-1,2);
+        let new_phi = phi + THREE.MathUtils.randFloatSpread(0.01);
+
+        if(new_theta >= 0.25 && new_theta <= 0.6*Math.PI){
+          const x = eye_set.eye_radius * Math.sin(new_theta) * Math.cos(new_phi);
+          const y = eye_set.eye_radius * Math.sin(new_theta) * Math.sin(new_phi);
+          const z = eye_set.eye_radius * Math.cos(new_theta);  
+          
+          line_vert.push(x,y,z); 
+        }              
+    }
+
+    eye_geom.setAttribute('color',  new THREE.BufferAttribute(line_colors,3));
+    let eye_mat = new THREE.LineBasicMaterial({
+        //vertexColors: true,
+        linewidth: line_set.width,
+    });
+    eye_geom.setAttribute('position', new THREE.Float32BufferAttribute(line_vert, 3));
+    eye_lines[i] = new THREE.LineSegments(eye_geom, eye_mat);
+    scene.add(eye_lines[i]);
+}
+
 
 
 //Loop Function - Draw Scene Every Time Screen is Refreshed -> Only when user is in page
@@ -93,36 +112,10 @@ function animate() {
 	requestAnimationFrame( animate );
 
     //Animation
-    //sphere.rotation.x += 0.01;
-    //sphere.rotation.y += 0.01;
-    const positions = eye_part.geometry.getAttribute('position');
-    for(let i = 0; i < positions.count; i++){
-        let theta = eye_theta[i] + THREE.MathUtils.randFloat(-0.01,0.02);
-        let phi = eye_phi[i] + THREE.MathUtils.randFloatSpread(0.01);
-
-        if(theta < 0.5*Math.PI){
-            if(theta > 0.25){
-            eye_theta[i] = theta;
-            eye_phi[i] = phi;
-            }
-    
-
-            const x = eye_set.eye_radius * Math.sin(theta) * Math.cos(phi);
-            const y = eye_set.eye_radius * Math.sin(theta) * Math.sin(phi);
-            const z = eye_set.eye_radius * Math.cos(theta);
-
-            positions.setXYZ(i, x, y, z);
-            eye_vert.push(x,y,z);
-            
-        }
-        else{
-            //eye_geom.setAttribute('position', new THREE.Float32BufferAttribute(eye_vert, 3));
-           // scene.remove(eye_part);
-        }
-        
-        
+    for(let i=0; i < line_set.n_vertex; i++){
+        if(renderer.info.render.frame % 4 == 0)
+        eye_lines[i].geometry.setDrawRange(0, renderer.info.render.frame);
     }
-    positions.needsUpdate = true;
 
     controls.update();
     renderer.render(scene, camera);
