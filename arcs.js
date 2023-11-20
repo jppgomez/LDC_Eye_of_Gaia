@@ -84,7 +84,7 @@ for (let i = 0; i < eye_set.particle_number; i++) {
     let phi = THREE.MathUtils.randFloatSpread(2*Math.PI);
     for(let j = 0; j < line_set.n_vertex; j++){
         let new_theta = theta + THREE.MathUtils.randFloat(-1,2);
-        let new_phi = phi + THREE.MathUtils.randFloatSpread(0.01);
+        let new_phi = phi + THREE.MathUtils.randFloatSpread(0.25);
 
         if(new_theta >= 0.25 && new_theta <= 0.6*Math.PI){
           const x = eye_set.eye_radius * Math.sin(new_theta) * Math.cos(new_phi);
