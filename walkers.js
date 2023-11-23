@@ -113,7 +113,7 @@ function animate() {
 
     //Animation
     for(let i=0; i < line_set.n_vertex; i++){
-        if(renderer.info.render.frame % 4 == 0)
+        if(renderer.info.render.frame % 8 == 0)
         eye_lines[i].geometry.setDrawRange(0, renderer.info.render.frame);
     }
 
