@@ -50,7 +50,7 @@ scene.add(directionalLight); */
     const zline = new THREE.Line( zgeometry, zred );
     scene.add( zline );
 
-let state = 0;
+let state = 1;
 
 let eye_set = {
     eye_radius : 20,
@@ -71,9 +71,9 @@ const line_colors = new Float32Array([
 ]);
 
 
-let part_points = 0;
-const part_vert = [];
 let particle_geom = new THREE.BufferGeometry();
+const part_vert = [];
+let part_points = 0;
 //PARTICLES
 for (let p = 0; p < eye_set.particle_number*100; p++){
 
@@ -129,12 +129,32 @@ function animate() {
 	requestAnimationFrame( animate );
 
     if(state == 0){ //particle field
-        particle_geom.translate(THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1), 
-            THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1), 
-            THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1));
+        for(let p = 0; p < part_points.geometry.getAttribute('position').count; p++){
+            const newX = part_points.geometry.getAttribute('position').getX(p) + THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1);
+            const newY = part_points.geometry.getAttribute('position').getY(p) + THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1);
+            const newZ = part_points.geometry.getAttribute('position').getZ(p) + THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1);
+            
+            part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
+
+        }
+        part_points.geometry.getAttribute('position').needsUpdate = true;
+        
     }
     else if(state == 1){ //eye stop
+        for(let p = 0; p < part_points.geometry.getAttribute('position').count; p++){
+            const theta = THREE.MathUtils.randFloat(0.25, 0.4); //0.3-2.5
+            const phi = THREE.MathUtils.randFloatSpread(2*Math.PI);
+            const newX = eye_set.eye_radius * Math.sin(theta) * Math.cos(phi);
+            const newY = eye_set.eye_radius * Math.sin(theta) * Math.sin(phi);
+            const newZ = eye_set.eye_radius * Math.cos(theta);
 
+            const newVec3 = new THREE.Vector3(newX, newY, newZ);
+
+            const oldVec3 = new THREE.Vector3().fromBufferAttribute(part_points.geometry.attributes.position, p);
+            oldVec3.lerp(newVec3, 0.5);
+            //console.log(newVec3);
+        }
+        part_points.geometry.getAttribute('position').needsUpdate = true;
     }
     else if(state == 2){ //eye follow
 
@@ -152,5 +172,16 @@ function animate() {
     */
     controls.update();
     renderer.render(scene, camera);
+
+    console.log(state);
 }
+
+window.addEventListener("keypress", key);
+function key(e){
+    if(e.key == "q") state = 0;
+    else if(e.key == "w") state = 1;
+    else if(e.key == "e") state = 2;
+    else if(e.key == "r") state = 3;
+}
+
 animate();
