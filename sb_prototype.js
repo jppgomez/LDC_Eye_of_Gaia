@@ -6,7 +6,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 scene.fog = new THREE.FogExp2(0x000000, 0.005);
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 ); //FOV, Aspect_Ratio, Near, Far
-camera.position.set( 50, 50, 100);
+camera.position.set(0, 0, 100);
 camera.lookAt( 0, 0, 0 );
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight ); //canvas size
@@ -50,13 +50,14 @@ scene.add(directionalLight); */
     const zline = new THREE.Line( zgeometry, zred );
     scene.add( zline );
 
-let state = 1;
+let state = 0;
 
 let eye_set = {
     eye_radius : 20,
     particle_number : 200,
     particle_color : 0xffffff,
-    particle_size : 0.5
+    particle_size : 0.5,
+    tunnel_radius: 100
 }
 
 let line_set = {
@@ -77,17 +78,18 @@ let part_points = 0;
 //PARTICLES
 for (let p = 0; p < eye_set.particle_number*100; p++){
 
-    const x = THREE.MathUtils.randFloatSpread(window.innerWidth/2);
-    const y = THREE.MathUtils.randFloatSpread(window.innerHeight/2);
-    const z = THREE.MathUtils.randFloatSpread(window.innerHeight/2);
+    const x = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.cos(p * ((2 * Math.PI)/ (eye_set.particle_number*100)));
+    const y = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.sin(p * ((2 * Math.PI)/ (eye_set.particle_number*100)));
+    
+    const z = THREE.MathUtils.randFloatSpread(4*eye_set.tunnel_radius);
 
    part_vert.push(x,y,z);
 }
     particle_geom.setAttribute('position', new THREE.Float32BufferAttribute(part_vert, 3));
     particle_geom.setAttribute('color',  new THREE.BufferAttribute(line_colors,3));
     let particle_mat = new THREE.PointsMaterial({
-        color: (0xffffff),
-        size: 0.5,
+        color: eye_set.particle_color,
+        size: eye_set.particle_size
     });
     part_points = new THREE.Points(particle_geom, particle_mat);
     scene.add(part_points); 
@@ -134,7 +136,7 @@ function animate() {
             const newY = part_points.geometry.getAttribute('position').getY(p) + THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1);
             const newZ = part_points.geometry.getAttribute('position').getZ(p) + THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1);
             
-            part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
+            //part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
 
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
