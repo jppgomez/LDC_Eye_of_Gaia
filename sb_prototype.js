@@ -1,14 +1,26 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
+//Noise Usage from Guillaume Mourier (@ledoublegui) 
+
+import * as TWEEN from '@tweenjs/tween.js';
  
 //Scene + Camera + Render
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 scene.fog = new THREE.FogExp2(0x000000, 0.005);
+
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 ); //FOV, Aspect_Ratio, Near, Far
-camera.position.set(0, 0, 100);
+camera.position.set(0, 0, 70);
 camera.lookAt( 0, 0, 0 );
+
+const camera_z = {z: camera.position.z};
+const camera_tween_f0_t1 = new TWEEN.Tween(camera_z).to({z: 220}, 1300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
+const camera_tween_f1_t0 = new TWEEN.Tween(camera_z).to({z: 70}, 1300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
+camera_tween_f0_t1.easing(TWEEN.Easing.Back.In);
+camera_tween_f1_t0.easing(TWEEN.Easing.Back.In);
+
+
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight ); //canvas size
 
@@ -29,13 +41,20 @@ scene.add(directionalLight); */
 
 const noise = new SimplexNoise();
 let noise_set = {
-    scale: 0.1,
-    x_scale: 0.05,
-    y_scale: 0.05,
-    z_scale: 0.15,
+    scale_0: 0.1,
+    x_scale_0: 0.03,
+    y_scale_0: 0.03,
+    z_scale_0: 0.15,
+    scale_1: 0.01,
+    x_scale_1: 0.25,
+    y_scale_1: 0.25,
+    z_scale_1: 0.75,
+    
 }
 
 //AXIS
+let axis = true;
+if(axis){
     const xblue = new THREE.LineBasicMaterial( { color: 0x0000ff } );
     const ygreen = new THREE.LineBasicMaterial( { color: 0x008000 } );
     const zred = new THREE.LineBasicMaterial( { color: 0xFF0000 } );
@@ -58,15 +77,17 @@ let noise_set = {
     const zgeometry = new THREE.BufferGeometry().setFromPoints( zpoints );
     const zline = new THREE.Line( zgeometry, zred );
     scene.add( zline );
+}
 
 let state = 0;
 
 let eye_set = {
-    eye_radius : 20,
-    particle_number : 200,
+    eye_radius : 100,
+    particle_number : 50000,
     particle_color : 0xffffff,
-    particle_size : 0.5,
-    tunnel_radius: 100
+    particle_size : 0.4,
+    tunnel_radius: 100,
+    tunnel_radius_multipliter: 4,
 }
 
 let line_set = {
@@ -81,26 +102,28 @@ const line_colors = new Float32Array([
 ]);
 
 
-let particle_geom = new THREE.BufferGeometry();
+let part_geom = new THREE.BufferGeometry();
 const part_vert = [];
 let part_points = 0;
+let theta = [], phi = [];
 //PARTICLES
-for (let p = 0; p < eye_set.particle_number*100; p++){
+for (let p = 0; p < eye_set.particle_number; p++){
+    theta[p] = THREE.MathUtils.randFloat(0.25, 2*Math.PI/3); //0.3-2.5
+    phi[p] = THREE.MathUtils.randFloatSpread(2*Math.PI);
 
-    const x = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.cos(p * ((2 * Math.PI)/ (eye_set.particle_number*100)));
-    const y = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.sin(p * ((2 * Math.PI)/ (eye_set.particle_number*100)));
-    
-    const z = THREE.MathUtils.randFloatSpread(4*eye_set.tunnel_radius);
+  const x = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.cos(p * ((2 * Math.PI)/ (eye_set.particle_number)));
+  const y = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.sin(p * ((2 * Math.PI)/ (eye_set.particle_number)));
+  const z = THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius_multipliter*eye_set.tunnel_radius);
 
-   part_vert.push(x,y,z);
+      part_vert.push(x,y,z);
 }
-    particle_geom.setAttribute('position', new THREE.Float32BufferAttribute(part_vert, 3));
-    particle_geom.setAttribute('color',  new THREE.BufferAttribute(line_colors,3));
-    let particle_mat = new THREE.PointsMaterial({
+    part_geom.setAttribute('position', new THREE.Float32BufferAttribute(part_vert, 3));
+    part_geom.setAttribute('color',  new THREE.BufferAttribute(line_colors,3));
+    let part_mat = new THREE.PointsMaterial({
         color: eye_set.particle_color,
         size: eye_set.particle_size
     });
-    part_points = new THREE.Points(particle_geom, particle_mat);
+    part_points = new THREE.Points(part_geom, part_mat);
     scene.add(part_points); 
 
 
@@ -140,14 +163,18 @@ function animate() {
 	requestAnimationFrame( animate );
 
     if(state == 0){ //particle field
-        let n;
+
+        camera_tween_f1_t0.update();
+
+        let n0;
         
         for(let p = 0; p < part_points.geometry.getAttribute('position').count; p++){
-            n = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale)
-            let a = (Math.PI * 2) * n + (renderer.info.render.frame/30);
-            const newX = part_points.geometry.getAttribute('position').getX(p) + Math.cos(a) * noise_set.x_scale;
-            const newY = part_points.geometry.getAttribute('position').getY(p) + Math.sin(a) * noise_set.y_scale;
-            const newZ = part_points.geometry.getAttribute('position').getZ(p) + Math.cos(a) * Math.sin(a) * noise_set.z_scale;
+            n0 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_0, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_0, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_0)
+            let a0 = (Math.PI * 2) * n0 + (renderer.info.render.frame/30);
+
+            const newX = part_points.geometry.getAttribute('position').getX(p) + Math.cos(a0) * noise_set.x_scale_0;
+            const newY = part_points.geometry.getAttribute('position').getY(p) + Math.sin(a0) * noise_set.y_scale_0;
+            const newZ = part_points.geometry.getAttribute('position').getZ(p) + Math.cos(a0) * Math.sin(a0) * noise_set.z_scale_0;
             
             part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
 
@@ -156,17 +183,25 @@ function animate() {
         
     }
     else if(state == 1){ //eye stop
+
+        camera_tween_f0_t1.update();
+
+        let n1;
+        
         for(let p = 0; p < part_points.geometry.getAttribute('position').count; p++){
-            const theta = THREE.MathUtils.randFloat(0.25, 0.4); //0.3-2.5
-            const phi = THREE.MathUtils.randFloatSpread(2*Math.PI);
-            const newX = eye_set.eye_radius * Math.sin(theta) * Math.cos(phi);
-            const newY = eye_set.eye_radius * Math.sin(theta) * Math.sin(phi);
-            const newZ = eye_set.eye_radius * Math.cos(theta);
+            n1 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_1)
+            let a1 = (Math.PI * 2) * n1 + (renderer.info.render.frame/30);
+           
+            const newX = eye_set.eye_radius * Math.sin(theta[p]) * Math.cos(phi[p]) + Math.cos(a1) * noise_set.x_scale_1;
+            const newY = eye_set.eye_radius * Math.sin(theta[p]) * Math.sin(phi[p]) + Math.sin(a1) * noise_set.y_scale_1;
+            const newZ = eye_set.eye_radius * Math.cos(theta[p]) + Math.cos(a1) * Math.sin(a1) * noise_set.z_scale_1;
 
-            const newVec3 = new THREE.Vector3(newX, newY, newZ);
+            //const newVec3 = new THREE.Vector3(newX, newY, newZ);
 
-            const oldVec3 = new THREE.Vector3().fromBufferAttribute(part_points.geometry.attributes.position, p);
-            oldVec3.lerp(newVec3, 0.5);
+            //const oldVec3 = new THREE.Vector3().fromBufferAttribute(part_points.geometry.attributes.position, p);
+            //oldVec3.lerp(newVec3, 0.5);
+            
+            part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
             //console.log(newVec3);
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
@@ -178,14 +213,7 @@ function animate() {
         
     }
 
-
-    //Animation
-    /*for(let i=0; i < line_set.n_vertex; i++){
-        if(renderer.info.render.frame % 8 == 0)
-        eye_lines[i].geometry.setDrawRange(0, renderer.info.render.frame);
-    }
-    */
-    controls.update();
+    //controls.update();
     renderer.render(scene, camera);
 
     console.log(state);
