@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
+import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
+ 
 //Scene + Camera + Render
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
@@ -25,6 +26,14 @@ scene.add(ambientLight);
 /* const directionalLight = new THREE.DirectionalLight(0xffbf00, 1);
 directionalLight.position.set(0.5,1,0.5);
 scene.add(directionalLight); */
+
+const noise = new SimplexNoise();
+let noise_set = {
+    scale: 0.1,
+    x_scale: 0.05,
+    y_scale: 0.05,
+    z_scale: 0.15,
+}
 
 //AXIS
     const xblue = new THREE.LineBasicMaterial( { color: 0x0000ff } );
@@ -131,12 +140,16 @@ function animate() {
 	requestAnimationFrame( animate );
 
     if(state == 0){ //particle field
+        let n;
+        
         for(let p = 0; p < part_points.geometry.getAttribute('position').count; p++){
-            const newX = part_points.geometry.getAttribute('position').getX(p) + THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1);
-            const newY = part_points.geometry.getAttribute('position').getY(p) + THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1);
-            const newZ = part_points.geometry.getAttribute('position').getZ(p) + THREE.MathUtils.mapLinear(THREE.MathUtils.seededRandom(1),0,1,-0.1,0.1);
+            n = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale)
+            let a = (Math.PI * 2) * n + (renderer.info.render.frame/30);
+            const newX = part_points.geometry.getAttribute('position').getX(p) + Math.cos(a) * noise_set.x_scale;
+            const newY = part_points.geometry.getAttribute('position').getY(p) + Math.sin(a) * noise_set.y_scale;
+            const newZ = part_points.geometry.getAttribute('position').getZ(p) + Math.cos(a) * Math.sin(a) * noise_set.z_scale;
             
-            //part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
+            part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
 
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
