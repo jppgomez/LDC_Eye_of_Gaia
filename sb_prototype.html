@@ -5,9 +5,22 @@
 		<title>Eye of Gaia: Storyboard</title>
 		<style>
 			body { margin: 0; }
+			#camera_vid{
+				position: absolute;
+				z-index:-1;
+				opacity: 0;
+			}
 		</style>
 	</head>
 	<body>
+		
+		<!--<video id="camera_vid"  width="320" height="240" preload autoplay muted></video>-->
+		
+		<script src="node_modules/tracking/build/tracking-min.js"></script>
+		<script src="node_modules/tracking/build/data/face-min.js"></script>
+		
+		<script type="module" src="camera.js"></script>
+
 		<script type="module" src="/sb_prototype.js"></script>
 	</body>
 </html>

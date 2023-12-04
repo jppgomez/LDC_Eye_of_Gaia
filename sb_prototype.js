@@ -4,7 +4,41 @@ import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 //Noise Usage from Guillaume Mourier (@ledoublegui) 
 
 import * as TWEEN from '@tweenjs/tween.js';
- 
+
+//CAMERA TRACKING
+/*
+let person = new tracking.ObjectTracker(['face']);
+let faceX, faceY;
+document.addEventListener('DOMContentLoaded', () => {
+    let video = document.getElementById('camera_vid');
+    let mediaDevices = navigator.mediaDevices;
+    video.muted = true;
+
+    mediaDevices.getUserMedia({
+        video: true,
+        audio: false
+    }).then((stream) => {
+        video.srcObject = stream;
+        video.addEventListener("loadedmetadata", () => {
+            video.play();
+        });
+    });
+});
+
+person.on('track', function(event) {
+    if (event.data.length === 0) {
+      // No objects were detected in this frame.
+      console.log('no objects detected');
+    } else {
+        //console.log(event.data);
+        faceX = (event.data[0].x * window.innerWidth) / 320;
+        faceY = (event.data[0].y * window.innerHeight) / 240;
+        //console.log(faceX, faceY);
+    }
+  });
+tracking.track('#camera_vid', person, {camera: true});
+*/
+
 //Scene + Camera + Render
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
@@ -14,11 +48,15 @@ const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.inner
 camera.position.set(0, 0, 70);
 camera.lookAt( 0, 0, 0 );
 
+const camera_xy = {x: camera.position.x, y:camera.position.y};
 const camera_z = {z: camera.position.z};
-const camera_tween_f0_t1 = new TWEEN.Tween(camera_z).to({z: 220}, 1300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
-const camera_tween_f1_t0 = new TWEEN.Tween(camera_z).to({z: 70}, 1300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
+const camera_tween_f0_t1 = new TWEEN.Tween(camera_z).to({z: 220}, 2300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
+const camera_tween_f1_t0 = new TWEEN.Tween(camera_z).to({z: 70}, 2300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
+//const camera_tween_f2 = new TWEEN.Tween(camera_xy).to({x: faceX, y: faceY}, 1000).onUpdate(() => camera.position.set(camera_xy.x, camera_xy.y, camera_z.z)).start();
+
 camera_tween_f0_t1.easing(TWEEN.Easing.Back.In);
 camera_tween_f1_t0.easing(TWEEN.Easing.Back.In);
+//camera_tween_f2.easing(TWEEN.Easing.Back.In);
 
 
 const renderer = new THREE.WebGLRenderer();
@@ -205,9 +243,11 @@ function animate() {
             //console.log(newVec3);
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
+
+        //state = 2;
     }
     else if(state == 2){ //eye follow
-
+        //camera_tween_f2.update();
     }
     else if(state == 3){ //eye mirror
         
