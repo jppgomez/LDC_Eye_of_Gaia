@@ -5,40 +5,6 @@ import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 
 import * as TWEEN from '@tweenjs/tween.js';
 
-//CAMERA TRACKING
-/*
-let person = new tracking.ObjectTracker(['face']);
-let faceX, faceY;
-document.addEventListener('DOMContentLoaded', () => {
-    let video = document.getElementById('camera_vid');
-    let mediaDevices = navigator.mediaDevices;
-    video.muted = true;
-
-    mediaDevices.getUserMedia({
-        video: true,
-        audio: false
-    }).then((stream) => {
-        video.srcObject = stream;
-        video.addEventListener("loadedmetadata", () => {
-            video.play();
-        });
-    });
-});
-
-person.on('track', function(event) {
-    if (event.data.length === 0) {
-      // No objects were detected in this frame.
-      console.log('no objects detected');
-    } else {
-        //console.log(event.data);
-        faceX = (event.data[0].x * window.innerWidth) / 320;
-        faceY = (event.data[0].y * window.innerHeight) / 240;
-        //console.log(faceX, faceY);
-    }
-  });
-tracking.track('#camera_vid', person, {camera: true});
-*/
-
 //Scene + Camera + Render
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
