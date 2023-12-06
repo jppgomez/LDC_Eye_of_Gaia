@@ -2,200 +2,293 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 //Noise Usage from Guillaume Mourier (@ledoublegui) 
-
 import * as TWEEN from '@tweenjs/tween.js';
 
-//Scene + Camera + Render
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-scene.fog = new THREE.FogExp2(0x000000, 0.005);
+let scene, camera, renderer, controls, ambientLight;
+let camera_tween_f0_t1, camera_tween_f1_t0, camera_tween_f2;
+let noise, noise_set, eye_set;
 
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 ); //FOV, Aspect_Ratio, Near, Far
-camera.position.set(0, 0, 70);
-camera.lookAt( 0, 0, 0 );
+let state = 0;
 
-const camera_xy = {x: camera.position.x, y:camera.position.y};
-const camera_z = {z: camera.position.z};
-const camera_tween_f0_t1 = new TWEEN.Tween(camera_z).to({z: 220}, 2300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
-const camera_tween_f1_t0 = new TWEEN.Tween(camera_z).to({z: 70}, 2300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
-//const camera_tween_f2 = new TWEEN.Tween(camera_xy).to({x: faceX, y: faceY}, 1000).onUpdate(() => camera.position.set(camera_xy.x, camera_xy.y, camera_z.z)).start();
+let part_geom, part_points, part_vert = [], theta = [], phi = [];
 
-camera_tween_f0_t1.easing(TWEEN.Easing.Back.In);
-camera_tween_f1_t0.easing(TWEEN.Easing.Back.In);
-//camera_tween_f2.easing(TWEEN.Easing.Back.In);
+//FACE DETECTION
+//Adapted from @bomanimc
+//https://github.com/ml5js/ml5-library/blob/main/examples/javascript/FaceApi/FaceApi_Video_Landmarks/sketch.js
+let faceapi, video;
+let canvas, context, cam_width = 426, cam_height = 240;
+let faceX, faceY, faceSize;
 
+let eyelid_posZ, eyelidTop, eyelidBottom, eyelid_material, eyelidT_mesh, eyelidB_mesh;
 
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize( window.innerWidth, window.innerHeight ); //canvas size
+//onload create detection + video
+document.addEventListener('DOMContentLoaded', () => {
+    createDetection();
+});
 
-document.body.appendChild( renderer.domElement ); //add canvas to DOM
-const controls = new OrbitControls(camera, renderer.domElement); //orbit controls
 //responsiveness
-window.addEventListener('resize', function(){
+window.addEventListener('resize', function () {
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 });
-//Lights
-const ambientLight = new THREE.AmbientLight(0xffbf00);
-scene.add(ambientLight);
-/* const directionalLight = new THREE.DirectionalLight(0xffbf00, 1);
-directionalLight.position.set(0.5,1,0.5);
-scene.add(directionalLight); */
 
-const noise = new SimplexNoise();
-let noise_set = {
-    scale_0: 0.1,
-    x_scale_0: 0.03,
-    y_scale_0: 0.03,
-    z_scale_0: 0.15,
-    scale_1: 0.01,
-    x_scale_1: 0.25,
-    y_scale_1: 0.25,
-    z_scale_1: 0.75,
+
+//create and trigger detection
+async function createDetection() {
+    //ml5 detection options
+    const detectionOptions = {
+        withLandmarks: true,
+        withDescriptors: false,
+        //minConfidence: 0.5,
+    };
+    //get video
+    video = await getVideo();
+    //create canvas for presenting detection
+    canvas = document.createElement("canvas");
+    canvas.width = cam_width;
+    canvas.height = cam_height;
+    canvas.id = 'camera_canvas';
+    canvas.setAttribute('style', 'position:absolute; top: 0; left:0;');
+    document.body.appendChild(canvas);
+    context = canvas.getContext('2d', { willReadFrequently: true });
+    //startup detection
+    faceapi = ml5.faceApi(video, detectionOptions, faceDetectReady);
+}
+
+//start detection when loaded + start three.js sketch
+function faceDetectReady() {
+    console.log('ready :)');
+    init();
+    animate();
+    faceapi.detect(getResults);
+}
+
+//get, present and handle results
+function getResults(err, result) {
+    //handle error
+    if (err) {
+        console.log(err);
+        return;
+    }
+    //handle results - draw canvas with camera
+    context.fillStyle = "#000000";
+    context.fillRect(0, 0, cam_width, cam_height);
+    context.drawImage(video, 0, 0, cam_width, cam_height);
+
+    if (result) {
+        if (result.length > 0) {
+            //draw box around face detected
+            faceBox(result);
+            //get normalized values for center of box
+            faceX = ((result[0].alignedRect._box._x + (result[0].alignedRect._box._width / 2)) * window.innerWidth) / cam_width;
+            faceY = ((result[0].alignedRect._box._y + (result[0].alignedRect._box._height / 2)) * window.innerHeight) / cam_height;
+            faceSize = ((result[0].alignedRect._box._height * window.innerWidth) / cam_width) * ((result[0].alignedRect._box._height * window.innerHeight) / cam_height);
+            //console.log(faceX, faceY);
+
+        }
+    }
+    else {
+        faceX = undefined;
+        faceY = undefined;
+        faceSize = undefined;
+    }
+    faceapi.detect(getResults);
+}
+
+//box around faces
+function faceBox(result) {
+    const alignedRect = result[0].alignedRect;
+    const x = alignedRect._box._x;
+    const y = alignedRect._box._y;
+    const boxWidth = alignedRect._box._width;
+    const boxHeight = alignedRect._box._height;
+
+    context.beginPath();
+    context.rect(x, y, boxWidth, boxHeight);
+    context.strokeStyle = "#FF0000";
+    context.stroke();
+    context.closePath();
+}
+
+//get camera video
+async function getVideo() {
+    //get camera video on a html video element
+    const video = document.createElement("video");
+    video.setAttribute('style', 'display:none;');
+    video.width = cam_width;
+    video.height = cam_height;
+    document.body.appendChild(video);
+    //setup camera as video source
+    const camera = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    video.srcObject = camera;
+    video.play();
+
+    return video;
+}
+
+//intialize three.js sketch
+function init() {
+    eye_set = {
+        eye_radius: 100,
+        particle_number: 50000,
+        particle_color: 0xffffff,
+        particle_size: 0.4,
+        tunnel_radius: 100,
+        tunnel_radius_multipliter: 4,
+        theta_min: 0.25,
+        theta_max: 2 * Math.PI / 3,
+        phi_min: 0,
+        phi_max: 2 * Math.PI,
+        rotation_max: Math.PI,
+        frst_distance: 70,
+        scnd_distance: 220,
+    }
+
+    const line_colors = new Float32Array([
+        1.0, 1.0, 1.0,
+        0.0, 0.0, 0.0
+    ]);
+
+    //Scene + Camera + Render
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    scene.fog = new THREE.FogExp2(0x000000, 0.005);
+
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); //FOV, Aspect_Ratio, Near, Far
+    camera.position.set(0, 0, eye_set.frst_distance);
+    camera.lookAt(0, 0, 0);
+
+    const camera_xy = { x: camera.position.x, y: camera.position.y };
+    const camera_z = { z: camera.position.z };
+    camera_tween_f0_t1 = new TWEEN.Tween(camera_z).to({ z: eye_set.scnd_distance }, 2300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
+    camera_tween_f1_t0 = new TWEEN.Tween(camera_z).to({ z: eye_set.frst_distance }, 2300).onUpdate(() => camera.position.set(0, 0, camera_z.z)).start();
     
-}
+    camera_tween_f0_t1.easing(TWEEN.Easing.Back.In);
+    camera_tween_f1_t0.easing(TWEEN.Easing.Back.In);
+    //camera_tween_f2.easing(TWEEN.Easing.Back.In);
 
-//AXIS
-let axis = true;
-if(axis){
-    const xblue = new THREE.LineBasicMaterial( { color: 0x0000ff } );
-    const ygreen = new THREE.LineBasicMaterial( { color: 0x008000 } );
-    const zred = new THREE.LineBasicMaterial( { color: 0xFF0000 } );
-    const xpoints = [];
-    xpoints.push( new THREE.Vector3(50 , 0, 0 ) );
-    xpoints.push( new THREE.Vector3( 0, 0, 0 ) );
-    const ypoints = [];
-    ypoints.push( new THREE.Vector3(0, 50, 0 ) );
-    ypoints.push( new THREE.Vector3( 0, 0, 0 ) );
-    const zpoints = [];
-    zpoints.push( new THREE.Vector3(0, 0, 50 ) );
-    zpoints.push( new THREE.Vector3( 0, 0, 0 ) );
+    renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight); //canvas size
 
-    const xgeometry = new THREE.BufferGeometry().setFromPoints( xpoints );
-    const xline = new THREE.Line( xgeometry, xblue );
-    scene.add( xline );
-    const ygeometry = new THREE.BufferGeometry().setFromPoints( ypoints );
-    const yline = new THREE.Line( ygeometry, ygreen );
-    scene.add( yline );
-    const zgeometry = new THREE.BufferGeometry().setFromPoints( zpoints );
-    const zline = new THREE.Line( zgeometry, zred );
-    scene.add( zline );
-}
+    document.body.appendChild(renderer.domElement); //add canvas to DOM
+    controls = new OrbitControls(camera, renderer.domElement); //orbit controls
 
-let state = 0;
+    //Lights
+    ambientLight = new THREE.AmbientLight(0xffbf00);
+    scene.add(ambientLight);
+    /* const directionalLight = new THREE.DirectionalLight(0xffbf00, 1);
+    directionalLight.position.set(0.5,1,0.5);
+    scene.add(directionalLight); */
 
-let eye_set = {
-    eye_radius : 100,
-    particle_number : 50000,
-    particle_color : 0xffffff,
-    particle_size : 0.4,
-    tunnel_radius: 100,
-    tunnel_radius_multipliter: 4,
-}
+    //AXIS
+    let axis = true;
+    if (axis) {
+        const xblue = new THREE.LineBasicMaterial({ color: 0x0000ff });
+        const ygreen = new THREE.LineBasicMaterial({ color: 0x008000 });
+        const zred = new THREE.LineBasicMaterial({ color: 0xFF0000 });
+        const xpoints = [];
+        xpoints.push(new THREE.Vector3(50, 0, 0));
+        xpoints.push(new THREE.Vector3(0, 0, 0));
+        const ypoints = [];
+        ypoints.push(new THREE.Vector3(0, 50, 0));
+        ypoints.push(new THREE.Vector3(0, 0, 0));
+        const zpoints = [];
+        zpoints.push(new THREE.Vector3(0, 0, 50));
+        zpoints.push(new THREE.Vector3(0, 0, 0));
 
-let line_set = {
-    n_vertex: 100,
-    color: 0xffffff,
-    width: 5,
-}
+        const xgeometry = new THREE.BufferGeometry().setFromPoints(xpoints);
+        const xline = new THREE.Line(xgeometry, xblue);
+        scene.add(xline);
+        const ygeometry = new THREE.BufferGeometry().setFromPoints(ypoints);
+        const yline = new THREE.Line(ygeometry, ygreen);
+        scene.add(yline);
+        const zgeometry = new THREE.BufferGeometry().setFromPoints(zpoints);
+        const zline = new THREE.Line(zgeometry, zred);
+        scene.add(zline);
+    }
 
-const line_colors = new Float32Array([
-    1.0, 1.0, 1.0,
-    0.0, 0.0, 0.0
-]);
+    noise = new SimplexNoise();
+    noise_set = {
+        scale_0: 0.1,
+        x_scale_0: 0.03,
+        y_scale_0: 0.03,
+        z_scale_0: 0.15,
+        scale_1: 0.01,
+        x_scale_1: 0.25,
+        y_scale_1: 0.25,
+        z_scale_1: 0.75,
 
+    }
+    //PARTICLES
+    part_geom = new THREE.BufferGeometry();
+    for (let p = 0; p < eye_set.particle_number; p++) {
+        theta[p] = THREE.MathUtils.randFloat(eye_set.theta_min, eye_set.theta_max); //0.3-2.5
+        phi[p] = THREE.MathUtils.randFloatSpread(eye_set.phi_max);
 
-let part_geom = new THREE.BufferGeometry();
-const part_vert = [];
-let part_points = 0;
-let theta = [], phi = [];
-//PARTICLES
-for (let p = 0; p < eye_set.particle_number; p++){
-    theta[p] = THREE.MathUtils.randFloat(0.25, 2*Math.PI/3); //0.3-2.5
-    phi[p] = THREE.MathUtils.randFloatSpread(2*Math.PI);
+        const x = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.cos(p * ((2 * Math.PI) / (eye_set.particle_number)));
+        const y = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.sin(p * ((2 * Math.PI) / (eye_set.particle_number)));
+        const z = THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius_multipliter * eye_set.tunnel_radius);
 
-  const x = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.cos(p * ((2 * Math.PI)/ (eye_set.particle_number)));
-  const y = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.sin(p * ((2 * Math.PI)/ (eye_set.particle_number)));
-  const z = THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius_multipliter*eye_set.tunnel_radius);
-
-      part_vert.push(x,y,z);
-}
+        part_vert.push(x, y, z);
+    }
     part_geom.setAttribute('position', new THREE.Float32BufferAttribute(part_vert, 3));
-    part_geom.setAttribute('color',  new THREE.BufferAttribute(line_colors,3));
+    part_geom.setAttribute('color', new THREE.BufferAttribute(line_colors, 3));
     let part_mat = new THREE.PointsMaterial({
         color: eye_set.particle_color,
         size: eye_set.particle_size
     });
     part_points = new THREE.Points(part_geom, part_mat);
-    scene.add(part_points); 
+    scene.add(part_points);
 
-
-/*
-for (let i = 0; i < eye_set.particle_number; i++) {
-    let eye_geom = new THREE.BufferGeometry();
-    const line_vert = [];
-    let theta = THREE.MathUtils.randFloat(0.25, 0.4); //0.3-2.5
-    let phi = THREE.MathUtils.randFloatSpread(2*Math.PI);
-    for(let j = 0; j < line_set.n_vertex; j++){
-        let new_theta = theta + THREE.MathUtils.randFloat(-1,2);
-        let new_phi = phi + THREE.MathUtils.randFloatSpread(0.25);
-
-        if(new_theta >= 0.25 && new_theta <= 0.6*Math.PI){
-          const x = eye_set.eye_radius * Math.sin(new_theta) * Math.cos(new_phi);
-          const y = eye_set.eye_radius * Math.sin(new_theta) * Math.sin(new_phi);
-          const z = eye_set.eye_radius * Math.cos(new_theta);  
-          
-          line_vert.push(x,y,z); 
-        }              
-    }
-
-    eye_geom.setAttribute('color',  new THREE.BufferAttribute(line_colors,3));
-    let eye_mat = new THREE.LineBasicMaterial({
-        //vertexColors: true,
-        linewidth: line_set.width,
-    });
-    eye_geom.setAttribute('position', new THREE.Float32BufferAttribute(line_vert, 3));
-    eye_lines[i] = new THREE.LineSegments(eye_geom, eye_mat);
-    scene.add(eye_lines[i]);
-}*/
-
-
+    //mask 2 cubes opposite to blink
+    eyelid_posZ = -6*eye_set.eye_radius;
+    eyelidTop = new THREE.BoxGeometry(2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius);
+    eyelidBottom = new THREE.BoxGeometry(2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius);
+    eyelid_material = new THREE.MeshBasicMaterial( { color: 0x000000 , size: THREE.DoubleSide} ); 
+    eyelidT_mesh = new THREE.Mesh( eyelidTop, eyelid_material );
+    eyelidB_mesh = new THREE.Mesh(eyelidBottom, eyelid_material); 
+    eyelidT_mesh.position.set(0, eyelid_posZ, 0);
+    eyelidB_mesh.position.set(0, -eyelid_posZ, 0);
+    eyelidT_mesh.rotation.x = Math.PI/2;
+    eyelidB_mesh.rotation.x = Math.PI/2;
+    scene.add( eyelidT_mesh );
+    scene.add(eyelidB_mesh);
+}
 
 //Loop Function - Draw Scene Every Time Screen is Refreshed -> Only when user is in page
 function animate() {
-	requestAnimationFrame( animate );
+    requestAnimationFrame(animate);
 
-    if(state == 0){ //particle field
-
+    if (state == 0) { //particle field
         camera_tween_f1_t0.update();
 
         let n0;
-        
-        for(let p = 0; p < part_points.geometry.getAttribute('position').count; p++){
+
+        for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
             n0 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_0, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_0, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_0)
-            let a0 = (Math.PI * 2) * n0 + (renderer.info.render.frame/30);
+            let a0 = (Math.PI * 2) * n0 + (renderer.info.render.frame / 30);
 
             const newX = part_points.geometry.getAttribute('position').getX(p) + Math.cos(a0) * noise_set.x_scale_0;
             const newY = part_points.geometry.getAttribute('position').getY(p) + Math.sin(a0) * noise_set.y_scale_0;
             const newZ = part_points.geometry.getAttribute('position').getZ(p) + Math.cos(a0) * Math.sin(a0) * noise_set.z_scale_0;
-            
+
             part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
 
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
-        
+
     }
-    else if(state == 1){ //eye stop
+    else if (state == 1) { //eye stop
 
         camera_tween_f0_t1.update();
 
         let n1;
-        
-        for(let p = 0; p < part_points.geometry.getAttribute('position').count; p++){
+
+        for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
             n1 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_1)
-            let a1 = (Math.PI * 2) * n1 + (renderer.info.render.frame/30);
-           
+            let a1 = (Math.PI * 2) * n1 + (renderer.info.render.frame / 30);
+
             const newX = eye_set.eye_radius * Math.sin(theta[p]) * Math.cos(phi[p]) + Math.cos(a1) * noise_set.x_scale_1;
             const newY = eye_set.eye_radius * Math.sin(theta[p]) * Math.sin(phi[p]) + Math.sin(a1) * noise_set.y_scale_1;
             const newZ = eye_set.eye_radius * Math.cos(theta[p]) + Math.cos(a1) * Math.sin(a1) * noise_set.z_scale_1;
@@ -204,19 +297,25 @@ function animate() {
 
             //const oldVec3 = new THREE.Vector3().fromBufferAttribute(part_points.geometry.attributes.position, p);
             //oldVec3.lerp(newVec3, 0.5);
-            
+
             part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
             //console.log(newVec3);
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
 
-        //state = 2;
+        state = 2;
     }
-    else if(state == 2){ //eye follow
+    else if (state == 2) { //eye follow
+        blink();
+        let moveX = mapValue(faceX, 0, window.innerWidth, -100, 100);
+        let moveY = mapValue(faceY, 0, window.innerHeight, -50, 50);
+        let moveZ = eye_set.scnd_distance + mapValue(faceSize, 0, window.innerWidth*window.innerHeight, 30, -30);
+        camera.position.set(moveX, moveY, moveZ);
+        camera.lookAt(0,0,eye_set.eye_radius/2);
         //camera_tween_f2.update();
     }
-    else if(state == 3){ //eye mirror
-        
+    else if (state == 3) { //eye mirror
+
     }
 
     //controls.update();
@@ -225,12 +324,30 @@ function animate() {
     console.log(state);
 }
 
-window.addEventListener("keypress", key);
-function key(e){
-    if(e.key == "q") state = 0;
-    else if(e.key == "w") state = 1;
-    else if(e.key == "e") state = 2;
-    else if(e.key == "r") state = 3;
-}
+//keyPressing for changing states - for testing purposes only
+window.addEventListener("keypress", (e) => {
+    if (e.key == "q") state = 0;
+    else if (e.key == "w") state = 1;
+    else if (e.key == "e") state = 2;
+    else if (e.key == "r") state = 3;
+});
 
-animate();
+//MAP FUNCTION
+    function mapValue(value, minI, maxI, minF, maxF) {
+        value = (value - minI) / (maxI - minI);
+        return minF + value * (maxF - minF);
+    }
+
+    function blink(){
+        if(eyelid_posZ < eye_set.eye_radius){
+            eyelid_posZ += 5;  
+        }
+        else if(eyelid_posZ < 2.2*eye_set.eye_radius){
+            eyelid_posZ += 10;
+        }
+        else {
+            eyelid_posZ = -20*eye_set.eye_radius;
+        }
+        eyelidT_mesh.position.set(0, eyelid_posZ, 0);
+        eyelidB_mesh.position.set(0, -eyelid_posZ, 0);
+    }
