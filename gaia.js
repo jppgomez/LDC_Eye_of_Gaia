@@ -5,7 +5,7 @@ import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 import * as TWEEN from '@tweenjs/tween.js';
 
 let scene, camera, renderer, controls, ambientLight;
-let camera_tween_f0t1, camera_tween_f1t0;
+let camera_tween_f0t1, camera_tween_f1t0, camera_tween_shake;
 let noise, noise_set, eye_set;
 
 let state = 0;
@@ -143,6 +143,7 @@ function init() {
         rotation_max: Math.PI,
         frst_distance: 70,
         scnd_distance: 220,
+        hello_counter: 0,
     }
 
     const line_colors = new Float32Array([
@@ -159,16 +160,14 @@ function init() {
     camera.position.set(0, 0, eye_set.frst_distance);
     camera.lookAt(0, 0, 0);
 
-    camera_tween_f0t1 = new TWEEN.Tween(camera.position.z).to({z: eye_set.scnd_distance}, 5000).onUpdate(() => {
+    camera_tween_f0t1 = new TWEEN.Tween(camera.position.z).to({z: eye_set.scnd_distance}, 5000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
         camera.position.set(0, 0, eye_set.scnd_distance);
     }).start();
-    camera_tween_f1t0 = new TWEEN.Tween(camera.position.z).to({ z: eye_set.frst_distance }, 3000).onUpdate(() => {
+
+    camera_tween_f1t0 = new TWEEN.Tween(camera.position.z).to({ z: eye_set.frst_distance }, 3000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
         camera.position.set(0, 0, eye_set.frst_distance);
 
     }).start();
-    
-    camera_tween_f0t1.easing(TWEEN.Easing.Back.In);
-    camera_tween_f1t0.easing(TWEEN.Easing.Back.In);
 
     renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight); //canvas size
@@ -275,7 +274,9 @@ function animate() {
         part_points.geometry.getAttribute('position').needsUpdate = true;
 
     }
-    else if (state == 1) { //eye build
+    else if (state == 1) { //eye build + say hello
+        shake(eye_set.hello_counter);
+
         let n1;
         for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
             n1 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_1)
@@ -286,8 +287,6 @@ function animate() {
             part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
-
-        state = 2;
     }
     else if (state == 2) { //eye follow
         blink();
@@ -315,6 +314,7 @@ window.addEventListener("keypress", (e) => {
         camera_tween_f0t1.update();
         state = 1;
     }
+
     else if (e.key == "e") state = 2;
     else if (e.key == "r") state = 3;
 });
@@ -326,15 +326,45 @@ window.addEventListener("keypress", (e) => {
     }
 
     function blink(){
-        if(eyelid_posZ < eye_set.eye_radius){
-            eyelid_posZ += 5;  
+        if(eyelid_posZ < (-2.2)*eye_set.eye_radius){
+            eyelid_posZ += 10;  
         }
-        else if(eyelid_posZ < 2.2*eye_set.eye_radius){
-            eyelid_posZ += 10;
+        else if(eyelid_posZ < (-0.5)*eye_set.eye_radius){
+            eyelid_posZ += 8;
         }
-        else {
+        else if(eyelid_posZ < 0.6*eye_set.eye_radius){
             eyelid_posZ = -20*eye_set.eye_radius;
         }
         eyelidT_mesh.position.set(0, eyelid_posZ, 0);
         eyelidB_mesh.position.set(0, -eyelid_posZ, 0);
+    }
+
+    function shake(c){
+        let shakeX1 = THREE.MathUtils.randFloatSpread(25);
+        let shakeX2 = THREE.MathUtils.randFloat(0, Math.abs(shakeX1));
+        let shakeX3 = THREE.MathUtils.randFloat(-1*Math.abs(shakeX1));
+
+        let camera_tween_shake1 = new TWEEN.Tween(camera.position.x).to({x: shakeX1}, 10000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
+            camera.position.set(shakeX1, 0, eye_set.scnd_distance);
+        });
+
+        let camera_tween_shake2 = new TWEEN.Tween(camera.position.x).to({x: shakeX2}, 10000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
+            camera.position.set(shakeX2, 0, eye_set.scnd_distance);
+        });
+
+        let camera_tween_shake3 = new TWEEN.Tween(camera.position.x).to({x: shakeX3}, 10000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
+            camera.position.set(shakeX3, 0, eye_set.scnd_distance);
+        });
+
+        camera_tween_shake1.chain(camera_tween_shake2, camera_tween_shake3);
+        camera_tween_shake1.start();
+
+        c++;
+
+        if(c <= 5){
+            eye_set.hello_counter = c;
+            camera_tween_shake1.update();
+        }
+        
+        else state = 2;
     }
