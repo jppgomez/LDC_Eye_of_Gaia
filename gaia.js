@@ -5,12 +5,12 @@ import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 import * as TWEEN from '@tweenjs/tween.js';
 
 let scene, camera, renderer, controls, ambientLight;
-let camera_tween_f0t1, camera_tween_f1t0, camera_tween_shake;
+let cam_coords, cam_theta, cam_phi;
 let noise, noise_set, eye_set;
 
 let state = 0;
 
-let part_geom, part_points, part_vert = [], theta = [], phi = [];
+let part_geom, part_points, part_vert = [], theta = [], phi = [], init_x = [], init_y = [], init_z = [];
 
 //FACE DETECTION
 //Adapted from @bomanimc
@@ -19,7 +19,8 @@ let faceapi, video;
 let canvas, context, cam_width = 426, cam_height = 240;
 let faceX, faceY, faceSize;
 
-let eyelid_posZ, eyelidTop, eyelidBottom, eyelid_material, eyelidT_mesh, eyelidB_mesh;
+let eyelid_posZ, eyelidTop, eyelidBottom, eyelid_material, eyelidT_mesh, eyelidB_mesh, blinking = false;
+let pupil_geom, pupil_mat, pupil_mesh;
 
 //onload create detection + video
 document.addEventListener('DOMContentLoaded', () => {
@@ -142,7 +143,7 @@ function init() {
         phi_max: 2 * Math.PI,
         rotation_max: Math.PI,
         frst_distance: 70,
-        scnd_distance: 220,
+        scnd_distance: 250,
         hello_counter: 0,
     }
 
@@ -156,19 +157,16 @@ function init() {
     scene.background = new THREE.Color(0x000000);
     scene.fog = new THREE.FogExp2(0x000000, 0.005);
 
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); //FOV, Aspect_Ratio, Near, Far
-    camera.position.set(0, 0, eye_set.frst_distance);
+    camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000); //FOV, Aspect_Ratio, Near, Far
+    cam_coords = {
+        x: 0, 
+        y: 0, 
+        z: eye_set.frst_distance
+    };
+    cam_theta = 0;
+    cam_phi = 0;
+    camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
     camera.lookAt(0, 0, 0);
-
-    camera_tween_f0t1 = new TWEEN.Tween(camera.position.z).to({z: eye_set.scnd_distance}, 5000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
-        camera.position.set(0, 0, eye_set.scnd_distance);
-    }).start();
-
-    camera_tween_f1t0 = new TWEEN.Tween(camera.position.z).to({ z: eye_set.frst_distance }, 3000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
-        camera.position.set(0, 0, eye_set.frst_distance);
-
-    }).start();
-
     renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight); //canvas size
 
@@ -212,7 +210,7 @@ function init() {
         x_scale_0: 0.03,
         y_scale_0: 0.03,
         z_scale_0: 0.15,
-        scale_1: 0.01,
+        scale_1: 0.06,
         x_scale_1: 0.25,
         y_scale_1: 0.25,
         z_scale_1: 0.75,
@@ -224,11 +222,11 @@ function init() {
         theta[p] = THREE.MathUtils.randFloat(eye_set.theta_min, eye_set.theta_max); //0.3-2.5
         phi[p] = THREE.MathUtils.randFloatSpread(eye_set.phi_max);
 
-        const x = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.cos(p * ((2 * Math.PI) / (eye_set.particle_number)));
-        const y = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.sin(p * ((2 * Math.PI) / (eye_set.particle_number)));
-        const z = THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius_multipliter * eye_set.tunnel_radius);
+        init_x[p] = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.cos(p * ((2 * Math.PI) / (eye_set.particle_number)));
+        init_y[p] = (eye_set.tunnel_radius + THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius)) * Math.sin(p * ((2 * Math.PI) / (eye_set.particle_number)));
+        init_z[p] = THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius_multipliter * eye_set.tunnel_radius);
 
-        part_vert.push(x, y, z);
+        part_vert.push(init_x[p], init_y[p], init_z[p]);
     }
     part_geom.setAttribute('position', new THREE.Float32BufferAttribute(part_vert, 3));
     part_geom.setAttribute('color', new THREE.BufferAttribute(line_colors, 3));
@@ -240,7 +238,7 @@ function init() {
     scene.add(part_points);
 
     //mask 2 cubes opposite to blink
-    eyelid_posZ = -6*eye_set.eye_radius;
+    eyelid_posZ = -3*eye_set.eye_radius;
     eyelidTop = new THREE.BoxGeometry(2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius);
     eyelidBottom = new THREE.BoxGeometry(2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius);
     eyelid_material = new THREE.MeshBasicMaterial( { color: 0x000000 , size: THREE.DoubleSide} ); 
@@ -252,31 +250,41 @@ function init() {
     eyelidB_mesh.rotation.x = Math.PI/2;
     scene.add( eyelidT_mesh );
     scene.add(eyelidB_mesh);
+
+    pupil_geom = new THREE.SphereGeometry((eye_set.eye_radius/4), 32, 32, 0, Math.PI, 0, 2*Math.PI);
+    pupil_mat = new THREE.MeshBasicMaterial({
+        color: 0x000000
+    });
+    pupil_mesh = new THREE.Mesh(pupil_geom, pupil_mat);
+    pupil_mesh.position.set(0, 0, eye_set.eye_radius);
+
 }
 
 //Loop Function - Draw Scene Every Time Screen is Refreshed -> Only when user is in page
-function animate() {
+const animate = (t) => {
     requestAnimationFrame(animate);
+    deformPupil();
 
     if (state == 0) { //particle field
+        transition_2_0();
+
         let n0;
         for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
             n0 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_0, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_0, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_0)
             let a0 = (Math.PI * 2) * n0 + (renderer.info.render.frame / 30);
 
-            const newX = part_points.geometry.getAttribute('position').getX(p) + Math.cos(a0) * noise_set.x_scale_0;
-            const newY = part_points.geometry.getAttribute('position').getY(p) + Math.sin(a0) * noise_set.y_scale_0;
-            const newZ = part_points.geometry.getAttribute('position').getZ(p) + Math.cos(a0) * Math.sin(a0) * noise_set.z_scale_0;
+            const newX = init_x[p] + Math.cos(a0) * noise_set.x_scale_0;
+            const newY = init_y[p] + Math.sin(a0) * noise_set.y_scale_0;
+            const newZ = init_z[p] + Math.cos(a0) * Math.sin(a0) * noise_set.z_scale_0;
 
             part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
 
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
-
     }
     else if (state == 1) { //eye build + say hello
-        shake(eye_set.hello_counter);
-
+        transition_0_1();
+        
         let n1;
         for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
             n1 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_1)
@@ -289,35 +297,65 @@ function animate() {
         part_points.geometry.getAttribute('position').needsUpdate = true;
     }
     else if (state == 2) { //eye follow
-        blink();
-        let moveX = mapValue(faceX, 0, window.innerWidth, -100, 100);
-        let moveY = mapValue(faceY, 0, window.innerHeight, -50, 50);
-        let moveZ = eye_set.scnd_distance + mapValue(faceSize, 0, window.innerWidth*window.innerHeight, 30, -30);
+        if(blinking) blink();
+        
+        if(Math.trunc(t) % 400 == 0) blinking = true;
+    
+        let faceHoriz = mapValue(faceX, 0, window.innerWidth, -1*(Math.PI/8), Math.PI/8);
+        let faceVert = mapValue(faceY, 0, window.innerHeight, -1*(Math.PI/15), Math.PI/15)
+        
+        cam_theta = 0.83*cam_theta + 0.17*faceHoriz;
+        cam_phi = 0.83*cam_phi + 0.17*faceVert;
+        
+        let moveX = eye_set.scnd_distance * Math.cos(cam_phi) * Math.sin(cam_theta);
+        let moveY = eye_set.scnd_distance * Math.sin(cam_phi);
+        let moveZ = eye_set.scnd_distance * Math.cos(cam_theta) * Math.cos(cam_phi);
+
+
         camera.position.set(moveX, moveY, moveZ);
-        camera.lookAt(0,0,eye_set.eye_radius/2);
+        camera.lookAt(0,0,0);
     }
     else if (state == 3) { //eye mirror
-
+        
     }
-
     renderer.render(scene, camera);
     console.log(state);
 }
 
 //keyPressing for changing states - for testing purposes only
 window.addEventListener("keypress", (e) => {
-    if (e.key == "q") {
-        camera_tween_f1t0.update();
-        state = 0;
-    }
-    else if (e.key == "w") {
-        camera_tween_f0t1.update();
-        state = 1;
-    }
-
+    if (e.key == "q") state = 0;
+    else if (e.key == "w") state = 1;
     else if (e.key == "e") state = 2;
     else if (e.key == "r") state = 3;
 });
+
+//TRANSITIONS
+    function transition_0_1(){
+        if(cam_coords.z < eye_set.scnd_distance){
+            cam_coords.z += 10;
+        }
+        else{
+            cam_coords.z = eye_set.scnd_distance;
+            if(eye_set.hello_counter < 24) shake();
+            else {
+                scene.add(pupil_mesh);
+                state = 2;
+            }
+        }
+        camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
+    }
+
+    function transition_2_0(){
+        if(cam_coords.z > eye_set.first_distance){
+            cam_coords.z -= 5;
+        }
+        else{
+            cam_coords.z = eye_set.frst_distance;
+        }
+        camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
+    }
+
 
 //MAP FUNCTION
     function mapValue(value, minI, maxI, minF, maxF) {
@@ -326,45 +364,56 @@ window.addEventListener("keypress", (e) => {
     }
 
     function blink(){
-        if(eyelid_posZ < (-2.2)*eye_set.eye_radius){
-            eyelid_posZ += 10;  
+        if(eyelid_posZ < (-3)*eye_set.eye_radius){
+            eyelid_posZ += 15;  
         }
         else if(eyelid_posZ < (-0.5)*eye_set.eye_radius){
-            eyelid_posZ += 8;
+            eyelid_posZ += 10;
         }
-        else if(eyelid_posZ < 0.6*eye_set.eye_radius){
-            eyelid_posZ = -20*eye_set.eye_radius;
+        else if(eyelid_posZ < 0.5*eye_set.eye_radius){
+            if(eyelid_posZ > (-4)*eye_set.eye_radius) eyelid_posZ -= 250;
+            blinking = false;
         }
         eyelidT_mesh.position.set(0, eyelid_posZ, 0);
         eyelidB_mesh.position.set(0, -eyelid_posZ, 0);
     }
 
-    function shake(c){
-        let shakeX1 = THREE.MathUtils.randFloatSpread(25);
-        let shakeX2 = THREE.MathUtils.randFloat(0, Math.abs(shakeX1));
-        let shakeX3 = THREE.MathUtils.randFloat(-1*Math.abs(shakeX1));
-
-        let camera_tween_shake1 = new TWEEN.Tween(camera.position.x).to({x: shakeX1}, 10000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
-            camera.position.set(shakeX1, 0, eye_set.scnd_distance);
-        });
-
-        let camera_tween_shake2 = new TWEEN.Tween(camera.position.x).to({x: shakeX2}, 10000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
-            camera.position.set(shakeX2, 0, eye_set.scnd_distance);
-        });
-
-        let camera_tween_shake3 = new TWEEN.Tween(camera.position.x).to({x: shakeX3}, 10000).easing(TWEEN.Easing.Back.In).onUpdate(() => {
-            camera.position.set(shakeX3, 0, eye_set.scnd_distance);
-        });
-
-        camera_tween_shake1.chain(camera_tween_shake2, camera_tween_shake3);
-        camera_tween_shake1.start();
-
-        c++;
-
-        if(c <= 5){
-            eye_set.hello_counter = c;
-            camera_tween_shake1.update();
-        }
-        
-        else state = 2;
+    function shake(){
+       if(eye_set.hello_counter < 6){
+        part_points.rotateY(Math.PI/35);
+        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI/35));
+        eye_set.hello_counter+=4;
+       }
+       else if(eye_set.hello_counter < 18){
+        part_points.rotateY(-Math.PI/35);
+        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI/35));
+        eye_set.hello_counter+=4;
+       }
+       else if(eye_set.hello_counter < 24){
+        part_points.rotateY(Math.PI/35);
+        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI/35));
+        eye_set.hello_counter+=4;
+       }
     }
+
+    function deformPupil(){
+        let n;
+        let noiseScale = 0.02;
+        for(let i = 0; i < pupil_mesh.geometry.getAttribute('position').count; i++){
+            n = noise.noise3d(pupil_mesh.geometry.getAttribute('position').getX(i) * noiseScale, pupil_mesh.geometry.getAttribute('position').getY(i) * noiseScale, pupil_mesh.geometry.getAttribute('position').getZ(i) * noiseScale);
+            let a1 = (Math.PI * 2) * n + (renderer.info.render.frame / 30);
+            const newX = pupil_mesh.geometry.getAttribute('position').getX(i) + Math.cos(a1)*noiseScale;
+            const newY = pupil_mesh.geometry.getAttribute('position').getY(i) + Math.sin(a1)*noiseScale;
+            const newZ = pupil_mesh.geometry.getAttribute('position').getZ(i) + Math.cos(a1)*Math.sin(a1)*noiseScale;
+            pupil_mesh.geometry.getAttribute('position').setXYZ(i, newX, newY, newZ);
+        }
+        pupil_mesh.geometry.getAttribute('position').needsUpdate = true;
+    }
+
+
+   // fix pupil noise
+   // increase noise particles
+   // fix recenter on state 0
+   // state 3  texture image
+   // text info
+   // cara maior
