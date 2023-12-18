@@ -20,7 +20,9 @@ let canvas, context, cam_width = 426, cam_height = 240;
 let faceX, faceY, faceSize;
 
 let eyelid_posZ, eyelidTop, eyelidBottom, eyelid_material, eyelidT_mesh, eyelidB_mesh, blinking = false;
-let pupil_geom, pupil_mat, pupil_mesh;
+
+let pupil_geom, pupil_mat, pupil_mesh, pupilX = [], pupilY = [], pupilZ = [];
+let cameraText, cameraMat;
 
 //onload create detection + video
 document.addEventListener('DOMContentLoaded', () => {
@@ -206,14 +208,14 @@ function init() {
 
     noise = new SimplexNoise();
     noise_set = {
-        scale_0: 0.1,
+        scale_0: 0.6,
         x_scale_0: 0.03,
         y_scale_0: 0.03,
         z_scale_0: 0.15,
-        scale_1: 0.06,
-        x_scale_1: 0.25,
-        y_scale_1: 0.25,
-        z_scale_1: 0.75,
+        scale_1: 0.1,
+        x_scale_1: 0.3,
+        y_scale_1: 0.3,
+        z_scale_1: 0.8,
 
     }
     //PARTICLES
@@ -257,13 +259,22 @@ function init() {
     });
     pupil_mesh = new THREE.Mesh(pupil_geom, pupil_mat);
     pupil_mesh.position.set(0, 0, eye_set.eye_radius);
+    for(let m = 0; m < pupil_mesh.geometry.getAttribute('position').count; m++){
+        pupilX[m] = pupil_mesh.geometry.getAttribute('position').getX(m);
+        pupilY[m] = pupil_mesh.geometry.getAttribute('position').getY(m);
+        pupilZ[m] = pupil_mesh.geometry.getAttribute('position').getZ(m);
+    } 
+
+    cameraText = new THREE.CanvasTexture(canvas);
+    cameraMat = new THREE.MeshPhongMaterial();
+    cameraMat.map = cameraText;
+
 
 }
 
 //Loop Function - Draw Scene Every Time Screen is Refreshed -> Only when user is in page
 const animate = (t) => {
     requestAnimationFrame(animate);
-    deformPupil();
 
     if (state == 0) { //particle field
         transition_2_0();
@@ -284,39 +295,35 @@ const animate = (t) => {
     }
     else if (state == 1) { //eye build + say hello
         transition_0_1();
-        
-        let n1;
-        for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
-            n1 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_1)
-            let a1 = (Math.PI * 2) * n1 + (renderer.info.render.frame / 30);
-            const newX = eye_set.eye_radius * Math.sin(theta[p]) * Math.cos(phi[p]) + Math.cos(a1) * noise_set.x_scale_1;
-            const newY = eye_set.eye_radius * Math.sin(theta[p]) * Math.sin(phi[p]) + Math.sin(a1) * noise_set.y_scale_1;
-            const newZ = eye_set.eye_radius * Math.cos(theta[p]) + Math.cos(a1) * Math.sin(a1) * noise_set.z_scale_1;
-            part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
-        }
-        part_points.geometry.getAttribute('position').needsUpdate = true;
     }
     else if (state == 2) { //eye follow
+        //blinking on a random timer
         if(blinking) blink();
-        
         if(Math.trunc(t) % 400 == 0) blinking = true;
-    
+        //face tracking
         let faceHoriz = mapValue(faceX, 0, window.innerWidth, -1*(Math.PI/8), Math.PI/8);
         let faceVert = mapValue(faceY, 0, window.innerHeight, -1*(Math.PI/15), Math.PI/15)
-        
+        //delay
         cam_theta = 0.83*cam_theta + 0.17*faceHoriz;
         cam_phi = 0.83*cam_phi + 0.17*faceVert;
-        
+        //sphere track
         let moveX = eye_set.scnd_distance * Math.cos(cam_phi) * Math.sin(cam_theta);
         let moveY = eye_set.scnd_distance * Math.sin(cam_phi);
         let moveZ = eye_set.scnd_distance * Math.cos(cam_theta) * Math.cos(cam_phi);
-
-
+        //set position
         camera.position.set(moveX, moveY, moveZ);
         camera.lookAt(0,0,0);
+
+        //particles 
+        particleDeform();
     }
     else if (state == 3) { //eye mirror
-        
+        particleDeform();
+
+        pupil_mesh.material = cameraMat;
+        cameraText.needsUpdate = true;
+        pupil_mesh.material.needsUpdate = true;
+
     }
     renderer.render(scene, camera);
     console.log(state);
@@ -347,13 +354,22 @@ window.addEventListener("keypress", (e) => {
     }
 
     function transition_2_0(){
-        if(cam_coords.z > eye_set.first_distance){
+        scene.remove(pupil_mesh);
+        if(cam_coords.z > eye_set.frst_distance){
             cam_coords.z -= 5;
+            if(cam_coords.x > 0) cam_coords.x--;
+            else if(cam_coords.x < 0) cam_coords.x++;
+
+            if(cam_coords.y < 0) cam_coords.y++;
+            else if(cam_coords.y > 0) cam_coords.y--;
         }
         else{
+            cam_coords.x = 0;
+            cam_coords.y = 0;
             cam_coords.z = eye_set.frst_distance;
         }
         camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
+        camera.lookAt(0,0,0);
     }
 
 
@@ -361,6 +377,20 @@ window.addEventListener("keypress", (e) => {
     function mapValue(value, minI, maxI, minF, maxF) {
         value = (value - minI) / (maxI - minI);
         return minF + value * (maxF - minF);
+    }
+
+
+    function particleDeform(){
+        let n1;
+        for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
+            n1 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_1)
+            let a1 = (Math.PI * 2) * n1 + (renderer.info.render.frame / 30);
+            const newX = eye_set.eye_radius * Math.sin(theta[p]) * Math.cos(phi[p]) + Math.cos(a1) * noise_set.x_scale_1;
+            const newY = eye_set.eye_radius * Math.sin(theta[p]) * Math.sin(phi[p]) + Math.sin(a1) * noise_set.y_scale_1;
+            const newZ = eye_set.eye_radius * Math.cos(theta[p]) + Math.cos(a1) * Math.sin(a1) * noise_set.z_scale_1;
+            part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
+        }
+        part_points.geometry.getAttribute('position').needsUpdate = true;
     }
 
     function blink(){
@@ -396,24 +426,8 @@ window.addEventListener("keypress", (e) => {
        }
     }
 
-    function deformPupil(){
-        let n;
-        let noiseScale = 0.02;
-        for(let i = 0; i < pupil_mesh.geometry.getAttribute('position').count; i++){
-            n = noise.noise3d(pupil_mesh.geometry.getAttribute('position').getX(i) * noiseScale, pupil_mesh.geometry.getAttribute('position').getY(i) * noiseScale, pupil_mesh.geometry.getAttribute('position').getZ(i) * noiseScale);
-            let a1 = (Math.PI * 2) * n + (renderer.info.render.frame / 30);
-            const newX = pupil_mesh.geometry.getAttribute('position').getX(i) + Math.cos(a1)*noiseScale;
-            const newY = pupil_mesh.geometry.getAttribute('position').getY(i) + Math.sin(a1)*noiseScale;
-            const newZ = pupil_mesh.geometry.getAttribute('position').getZ(i) + Math.cos(a1)*Math.sin(a1)*noiseScale;
-            pupil_mesh.geometry.getAttribute('position').setXYZ(i, newX, newY, newZ);
-        }
-        pupil_mesh.geometry.getAttribute('position').needsUpdate = true;
-    }
 
-
-   // fix pupil noise
-   // increase noise particles
-   // fix recenter on state 0
+   // increase noise particles - fix noise
    // state 3  texture image
    // text info
    // cara maior
