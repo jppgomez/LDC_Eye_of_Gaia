@@ -1,8 +1,10 @@
 {
   "dependencies": {
     "@tweenjs/tween.js": "^21.0.0",
+    "canvas-filters": "^1.0.1",
     "dat.gui": "^0.7.9",
     "face-api.js": "^0.22.2",
+    "image-filter-threshold": "^2.0.1",
     "postprocessing": "^6.33.3",
     "three": "^0.158.0",
     "tracking": "^1.1.3"

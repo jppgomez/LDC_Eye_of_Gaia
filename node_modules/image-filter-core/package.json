@@ -1,0 +1,52 @@
+{
+  "name": "image-filter-core",
+  "version": "2.0.2",
+  "description": "Core module for image-filter",
+  "main": "src/index.js",
+  "scripts": {
+    "eslint": "eslint src/**/*.js",
+    "test": "karma start",
+    "build": "npm run eslint && browserify sandbox/sandbox.js > sandbox/bundle.js",
+    "codecov": "cat coverage/*/lcov.info | codecov",
+    "serve": "http-server sandbox"
+  },
+  "author": "Ricardo Canastro",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/canastro/image-filter-core"
+  },
+  "bugs": {
+    "url": "https://github.com/canastro/image-filter-core/issues"
+  },
+  "keywords": [
+    "image",
+    "filter",
+    "filters",
+    "processing",
+    "manipulation",
+    "contrast",
+    "transformation",
+    "pixel"
+  ],
+  "devDependencies": {
+    "browserify": "^13.0.0",
+    "browserify-istanbul": "^1.0.0",
+    "chai": "^3.5.0",
+    "codecov.io": "^0.1.6",
+    "eslint": "^3.13.0",
+    "http-server": "^0.9.0",
+    "karma": "^0.13.22",
+    "karma-browserify": "^5.0.2",
+    "karma-coverage": "^0.5.5",
+    "karma-mocha": "^0.2.2",
+    "karma-mocha-reporter": "^2.0.0",
+    "karma-phantomjs-launcher": "^1.0.0",
+    "mocha": "^2.4.5",
+    "phantomjs-prebuilt": "^2.1.5",
+    "sinon": "^1.17.3"
+  },
+  "dependencies": {
+    "es6-promise": "^4.0.5"
+  }
+}

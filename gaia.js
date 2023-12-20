@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
-//Noise Usage from Guillaume Mourier (@ledoublegui) 
-import * as TWEEN from '@tweenjs/tween.js';
+//Noise Usage from Guillaume Mourier (@ledoublegui)
 
 let scene, camera, renderer, controls, ambientLight;
 let cam_coords, cam_theta, cam_phi;
@@ -19,9 +18,11 @@ let faceapi, video;
 let canvas, context, cam_width = 426, cam_height = 240;
 let faceX, faceY, faceSize;
 
+let filterThreshold = 70; //adjust according to lighting conditions - possible time map for daylight
+
 let eyelid_posZ, eyelidTop, eyelidBottom, eyelid_material, eyelidT_mesh, eyelidB_mesh, blinking = false;
 
-let pupil_geom, pupil_mat, pupil_mesh, pupilX = [], pupilY = [], pupilZ = [];
+let pupil_geom, pupil_mat, pupil_mesh, pupil_initX = [], pupil_initY = [];
 let cameraText, cameraMat;
 
 //onload create detection + video
@@ -78,23 +79,40 @@ function getResults(err, result) {
     context.fillStyle = "#000000";
     context.fillRect(0, 0, cam_width, cam_height);
     context.drawImage(video, 0, 0, cam_width, cam_height);
+    context.filter = 'blur(1.75px)';
+    let imageData = context.getImageData(0, 0, cam_width, cam_height);
+    let filteredImageData = thresholdFilter(imageData, filterThreshold);
+    context.putImageData(filteredImageData, 0, 0);
+
+    canvas.style.display = 'none';
 
     if (result) {
         if (result.length > 0) {
-            //draw box around face detected
-            faceBox(result);
-            //get normalized values for center of box
-            faceX = ((result[0].alignedRect._box._x + (result[0].alignedRect._box._width / 2)) * window.innerWidth) / cam_width;
-            faceY = ((result[0].alignedRect._box._y + (result[0].alignedRect._box._height / 2)) * window.innerHeight) / cam_height;
-            faceSize = ((result[0].alignedRect._box._height * window.innerWidth) / cam_width) * ((result[0].alignedRect._box._height * window.innerHeight) / cam_height);
-            //console.log(faceX, faceY);
+            let faceBoxX, faceBoxY, faceBoxW = 0, faceBoxH = 0;
+            for (let r = 0; r < result.length; r++) {
+                if (result[r].alignedRect._box._width > faceBoxW && result[r].alignedRect._box._height > faceBoxH) {
+                    faceBoxX = result[r].alignedRect._box._x;
+                    faceBoxY = result[r].alignedRect._box._y;
+                    faceBoxW = result[r].alignedRect._box._width;
+                    faceBoxH = result[r].alignedRect._box._height;
+                }
+            }
 
+            if (faceBoxX && faceBoxY) {
+                //draw box around face detected
+                //faceBox(result);
+                //get normalized values for center of box
+                faceX = ((faceBoxX + (faceBoxW / 2)) * window.innerWidth) / cam_width;
+                faceY = ((faceBoxY + (faceBoxH / 2)) * window.innerHeight) / cam_height;
+                //faceSize = ((faceBoxW * window.innerWidth) / cam_width) * ((faceBoxH * window.innerHeight) / cam_height);
+                //console.log(faceX, faceY);
+            }
         }
     }
     else {
         faceX = undefined;
         faceY = undefined;
-        faceSize = undefined;
+        //faceSize = undefined;
     }
     faceapi.detect(getResults);
 }
@@ -161,8 +179,8 @@ function init() {
 
     camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000); //FOV, Aspect_Ratio, Near, Far
     cam_coords = {
-        x: 0, 
-        y: 0, 
+        x: 0,
+        y: 0,
         z: eye_set.frst_distance
     };
     cam_theta = 0;
@@ -176,7 +194,7 @@ function init() {
     controls = new OrbitControls(camera, renderer.domElement); //orbit controls
 
     //Lights
-    ambientLight = new THREE.AmbientLight(0xffbf00);
+    ambientLight = new THREE.AmbientLight(0xffffff);
     scene.add(ambientLight);
 
     //AXIS
@@ -208,14 +226,14 @@ function init() {
 
     noise = new SimplexNoise();
     noise_set = {
-        scale_0: 0.6,
-        x_scale_0: 0.03,
-        y_scale_0: 0.03,
-        z_scale_0: 0.15,
-        scale_1: 0.1,
-        x_scale_1: 0.3,
-        y_scale_1: 0.3,
-        z_scale_1: 0.8,
+        scale_0: 0.1,
+        x_scale_0: 1.1,
+        y_scale_0: 1.1,
+        z_scale_0: 1.4,
+        scale_1: 0.05,
+        x_scale_1: 0.01,
+        y_scale_1: 0.01,
+        z_scale_1: 0.02,
 
     }
     //PARTICLES
@@ -240,30 +258,29 @@ function init() {
     scene.add(part_points);
 
     //mask 2 cubes opposite to blink
-    eyelid_posZ = -3*eye_set.eye_radius;
-    eyelidTop = new THREE.BoxGeometry(2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius);
-    eyelidBottom = new THREE.BoxGeometry(2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius, 2.5*eye_set.eye_radius);
-    eyelid_material = new THREE.MeshBasicMaterial( { color: 0x000000 , size: THREE.DoubleSide} ); 
-    eyelidT_mesh = new THREE.Mesh( eyelidTop, eyelid_material );
-    eyelidB_mesh = new THREE.Mesh(eyelidBottom, eyelid_material); 
+    eyelid_posZ = -3 * eye_set.eye_radius;
+    eyelidTop = new THREE.BoxGeometry(2.5 * eye_set.eye_radius, 2.5 * eye_set.eye_radius, 2.5 * eye_set.eye_radius);
+    eyelidBottom = new THREE.BoxGeometry(2.5 * eye_set.eye_radius, 2.5 * eye_set.eye_radius, 2.5 * eye_set.eye_radius);
+    eyelid_material = new THREE.MeshBasicMaterial({ color: 0x000000, size: THREE.DoubleSide });
+    eyelidT_mesh = new THREE.Mesh(eyelidTop, eyelid_material);
+    eyelidB_mesh = new THREE.Mesh(eyelidBottom, eyelid_material);
     eyelidT_mesh.position.set(0, eyelid_posZ, 0);
     eyelidB_mesh.position.set(0, -eyelid_posZ, 0);
-    eyelidT_mesh.rotation.x = Math.PI/2;
-    eyelidB_mesh.rotation.x = Math.PI/2;
-    scene.add( eyelidT_mesh );
+    eyelidT_mesh.rotation.x = Math.PI / 2;
+    eyelidB_mesh.rotation.x = Math.PI / 2;
+    scene.add(eyelidT_mesh);
     scene.add(eyelidB_mesh);
 
-    pupil_geom = new THREE.SphereGeometry((eye_set.eye_radius/4), 32, 32, 0, Math.PI, 0, 2*Math.PI);
+    pupil_geom = new THREE.CircleGeometry(1.1*(eye_set.eye_radius / 4), 16);
     pupil_mat = new THREE.MeshBasicMaterial({
         color: 0x000000
     });
     pupil_mesh = new THREE.Mesh(pupil_geom, pupil_mat);
-    pupil_mesh.position.set(0, 0, eye_set.eye_radius);
-    for(let m = 0; m < pupil_mesh.geometry.getAttribute('position').count; m++){
-        pupilX[m] = pupil_mesh.geometry.getAttribute('position').getX(m);
-        pupilY[m] = pupil_mesh.geometry.getAttribute('position').getY(m);
-        pupilZ[m] = pupil_mesh.geometry.getAttribute('position').getZ(m);
-    } 
+    pupil_mesh.position.set(0, 0, eye_set.eye_radius-5);
+    for (let m = 0; m < pupil_mesh.geometry.getAttribute('position').count; m++) {
+        pupil_initX[m] = pupil_mesh.geometry.getAttribute('position').getX(m);
+        pupil_initY[m] = pupil_mesh.geometry.getAttribute('position').getY(m);
+    }
 
     cameraText = new THREE.CanvasTexture(canvas);
     cameraMat = new THREE.MeshPhongMaterial();
@@ -284,9 +301,9 @@ const animate = (t) => {
             n0 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_0, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_0, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_0)
             let a0 = (Math.PI * 2) * n0 + (renderer.info.render.frame / 30);
 
-            const newX = init_x[p] + Math.cos(a0) * noise_set.x_scale_0;
-            const newY = init_y[p] + Math.sin(a0) * noise_set.y_scale_0;
-            const newZ = init_z[p] + Math.cos(a0) * Math.sin(a0) * noise_set.z_scale_0;
+            const newX = part_points.geometry.getAttribute('position').getX(p) + Math.cos(a0) * noise_set.x_scale_0;
+            const newY = part_points.geometry.getAttribute('position').getY(p) + Math.sin(a0) * noise_set.y_scale_0;
+            const newZ = part_points.geometry.getAttribute('position').getZ(p) + Math.cos(a0) * Math.sin(a0) * noise_set.z_scale_0;
 
             part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
 
@@ -298,32 +315,24 @@ const animate = (t) => {
     }
     else if (state == 2) { //eye follow
         //blinking on a random timer
-        if(blinking) blink();
-        if(Math.trunc(t) % 400 == 0) blinking = true;
-        //face tracking
-        let faceHoriz = mapValue(faceX, 0, window.innerWidth, -1*(Math.PI/8), Math.PI/8);
-        let faceVert = mapValue(faceY, 0, window.innerHeight, -1*(Math.PI/15), Math.PI/15)
-        //delay
-        cam_theta = 0.83*cam_theta + 0.17*faceHoriz;
-        cam_phi = 0.83*cam_phi + 0.17*faceVert;
-        //sphere track
-        let moveX = eye_set.scnd_distance * Math.cos(cam_phi) * Math.sin(cam_theta);
-        let moveY = eye_set.scnd_distance * Math.sin(cam_phi);
-        let moveZ = eye_set.scnd_distance * Math.cos(cam_theta) * Math.cos(cam_phi);
-        //set position
-        camera.position.set(moveX, moveY, moveZ);
-        camera.lookAt(0,0,0);
-
+        if (blinking) blink();
+        if (Math.trunc(t) % 400 == 0) blinking = true;
+        //follow person
+        follow();
         //particles 
         particleDeform();
+
+        pupil_mesh.material = pupil_mat;
+        pupil_mesh.material.needsUpdate = true;
     }
     else if (state == 3) { //eye mirror
+        //follow();
         particleDeform();
 
         pupil_mesh.material = cameraMat;
         cameraText.needsUpdate = true;
         pupil_mesh.material.needsUpdate = true;
-
+        pupilDeform();
     }
     renderer.render(scene, camera);
     console.log(state);
@@ -338,96 +347,163 @@ window.addEventListener("keypress", (e) => {
 });
 
 //TRANSITIONS
-    function transition_0_1(){
-        if(cam_coords.z < eye_set.scnd_distance){
-            cam_coords.z += 10;
+function transition_0_1() {
+    if (cam_coords.z < eye_set.scnd_distance) {
+        cam_coords.z += 10;
+    }
+    else {
+        cam_coords.z = eye_set.scnd_distance;
+        if (eye_set.hello_counter < 24) shake();
+        else {
+            eye_set.hello_counter = 0;
+            scene.add(pupil_mesh);
+            state = 2;
         }
-        else{
-            cam_coords.z = eye_set.scnd_distance;
-            if(eye_set.hello_counter < 24) shake();
-            else {
-                scene.add(pupil_mesh);
-                state = 2;
-            }
-        }
-        camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
     }
 
-    function transition_2_0(){
-        scene.remove(pupil_mesh);
-        if(cam_coords.z > eye_set.frst_distance){
-            cam_coords.z -= 5;
-            if(cam_coords.x > 0) cam_coords.x--;
-            else if(cam_coords.x < 0) cam_coords.x++;
+    for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
+        part_points.geometry.getAttribute('position').setXYZ(p, (eye_set.eye_radius * Math.sin(theta[p]) * Math.cos(phi[p])), (eye_set.eye_radius * Math.sin(theta[p]) * Math.sin(phi[p])), (eye_set.eye_radius * Math.cos(theta[p])));
 
-            if(cam_coords.y < 0) cam_coords.y++;
-            else if(cam_coords.y > 0) cam_coords.y--;
-        }
-        else{
-            cam_coords.x = 0;
-            cam_coords.y = 0;
-            cam_coords.z = eye_set.frst_distance;
-        }
-        camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
-        camera.lookAt(0,0,0);
     }
+    part_points.geometry.getAttribute('position').needsUpdate = true;
+    camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
+}
+
+function transition_2_0() {
+    if (eye_set.hello_counter < 24 && eye_set.hello_counter != 0) shake();
+
+    scene.remove(pupil_mesh);
+    if (cam_coords.z > eye_set.frst_distance) {
+        cam_coords.z -= 5;
+        if (cam_coords.x > 0) cam_coords.x--;
+        else if (cam_coords.x < 0) cam_coords.x++;
+
+        if (cam_coords.y < 0) cam_coords.y++;
+        else if (cam_coords.y > 0) cam_coords.y--;
+    }
+    else {
+        cam_coords.x = 0;
+        cam_coords.y = 0;
+        cam_coords.z = eye_set.frst_distance;
+        eye_set.hello_counter = 0;
+    }
+    for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
+        part_points.geometry.getAttribute('position').setXYZ(p, init_x[p], init_y[p], init_z[p]);
+
+    }
+    part_points.geometry.getAttribute('position').needsUpdate = true;
+
+    camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
+    camera.lookAt(0, 0, 0);
+}
 
 
 //MAP FUNCTION
-    function mapValue(value, minI, maxI, minF, maxF) {
-        value = (value - minI) / (maxI - minI);
-        return minF + value * (maxF - minF);
+function mapValue(value, minI, maxI, minF, maxF) {
+    value = (value - minI) / (maxI - minI);
+    return minF + value * (maxF - minF);
+}
+
+
+function particleDeform() {
+    let n1;
+    for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
+        n1 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_1)
+        let a1 = (Math.PI * 2) * n1 + (renderer.info.render.frame / 30);
+        const newX = part_points.geometry.getAttribute('position').getX(p) + Math.cos(a1) * noise_set.x_scale_1;
+        const newY = part_points.geometry.getAttribute('position').getY(p) + Math.sin(a1) * noise_set.y_scale_1;
+        const newZ = part_points.geometry.getAttribute('position').getZ(p) + Math.cos(a1) * Math.sin(a1) * noise_set.z_scale_1;
+        part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
     }
+    part_points.geometry.getAttribute('position').needsUpdate = true;
+}
 
-
-    function particleDeform(){
-        let n1;
-        for (let p = 0; p < part_points.geometry.getAttribute('position').count; p++) {
-            n1 = noise.noise3d(part_points.geometry.getAttribute('position').getX(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getY(p) * noise_set.scale_1, part_points.geometry.getAttribute('position').getZ(p) * noise_set.scale_1)
-            let a1 = (Math.PI * 2) * n1 + (renderer.info.render.frame / 30);
-            const newX = eye_set.eye_radius * Math.sin(theta[p]) * Math.cos(phi[p]) + Math.cos(a1) * noise_set.x_scale_1;
-            const newY = eye_set.eye_radius * Math.sin(theta[p]) * Math.sin(phi[p]) + Math.sin(a1) * noise_set.y_scale_1;
-            const newZ = eye_set.eye_radius * Math.cos(theta[p]) + Math.cos(a1) * Math.sin(a1) * noise_set.z_scale_1;
-            part_points.geometry.getAttribute('position').setXYZ(p, newX, newY, newZ);
-        }
-        part_points.geometry.getAttribute('position').needsUpdate = true;
+function blink() {
+    if (eyelid_posZ < (-3) * eye_set.eye_radius) {
+        eyelid_posZ += 15;
     }
-
-    function blink(){
-        if(eyelid_posZ < (-3)*eye_set.eye_radius){
-            eyelid_posZ += 15;  
-        }
-        else if(eyelid_posZ < (-0.5)*eye_set.eye_radius){
-            eyelid_posZ += 10;
-        }
-        else if(eyelid_posZ < 0.5*eye_set.eye_radius){
-            if(eyelid_posZ > (-4)*eye_set.eye_radius) eyelid_posZ -= 250;
-            blinking = false;
-        }
-        eyelidT_mesh.position.set(0, eyelid_posZ, 0);
-        eyelidB_mesh.position.set(0, -eyelid_posZ, 0);
+    else if (eyelid_posZ < (-0.5) * eye_set.eye_radius) {
+        eyelid_posZ += 10;
     }
-
-    function shake(){
-       if(eye_set.hello_counter < 6){
-        part_points.rotateY(Math.PI/35);
-        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI/35));
-        eye_set.hello_counter+=4;
-       }
-       else if(eye_set.hello_counter < 18){
-        part_points.rotateY(-Math.PI/35);
-        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI/35));
-        eye_set.hello_counter+=4;
-       }
-       else if(eye_set.hello_counter < 24){
-        part_points.rotateY(Math.PI/35);
-        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI/35));
-        eye_set.hello_counter+=4;
-       }
+    else if (eyelid_posZ < 0.5 * eye_set.eye_radius) {
+        if (eyelid_posZ > (-4) * eye_set.eye_radius) eyelid_posZ -= 250;
+        blinking = false;
     }
+    eyelidT_mesh.position.set(0, eyelid_posZ, 0);
+    eyelidB_mesh.position.set(0, -eyelid_posZ, 0);
+}
+
+function shake() {
+    if (eye_set.hello_counter < 6) {
+        part_points.rotateY(Math.PI / 40);
+        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI / 40));
+        eye_set.hello_counter += 1.75;
+    }
+    else if (eye_set.hello_counter < 18) {
+        part_points.rotateY(-1 * Math.PI / 40);
+        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI / 40));
+        eye_set.hello_counter += 1.75;
+    }
+    else if (eye_set.hello_counter < 24) {
+        part_points.rotateY(Math.PI / 40);
+        part_points.rotateZ(THREE.MathUtils.randFloatSpread(Math.PI / 40));
+        eye_set.hello_counter += 1.75;
+    }
+}
+
+function follow() {
+    //face tracking
+    let faceHoriz = mapValue(faceX, 0, window.innerWidth, -1 * (Math.PI / 8), Math.PI / 8);
+    let faceVert = mapValue(faceY, 0, window.innerHeight, -1 * (Math.PI / 15), Math.PI / 15)
+    //delay
+    cam_theta = 0.83 * cam_theta + 0.17 * faceHoriz;
+    cam_phi = 0.83 * cam_phi + 0.17 * faceVert;
+    //sphere track
+    let moveX = eye_set.scnd_distance * Math.cos(cam_phi) * Math.sin(cam_theta);
+    let moveY = eye_set.scnd_distance * Math.sin(cam_phi);
+    let moveZ = eye_set.scnd_distance * Math.cos(cam_theta) * Math.cos(cam_phi);
+    //set position
+    camera.position.set(moveX, moveY, moveZ);
+    camera.lookAt(0, 0, 0);
+
+}
+
+//from Antonello Zanini (https://img.ly/blog/how-to-apply-filters-in-javascript/)
+function thresholdFilter(
+    imgData,
+    threshold
+) {
+    const src = imgData.data;
+
+    for (let i = 0; i < src.length; i += 4) {
+        const r = src[i];
+        const g = src[i + 1];
+        const b = src[i + 2];
+
+        let v;
+        if (0.2126 * r + 0.7152 * g + 0.0722 * b >= threshold) v = 0;
+        else v = 9;
+
+        src[i] = src[i + 1] = src[i + 2] = v
+    }
+    return imgData;
+};
 
 
-   // increase noise particles - fix noise
-   // state 3  texture image
-   // text info
-   // cara maior
+function pupilDeform() {
+    let n1;
+    for (let p = 0; p < pupil_mesh.geometry.getAttribute('position').count; p++) {
+        n1 = noise.noise3d(pupil_initX[p], pupil_initY[p], 0);
+        let a1 = (Math.PI * 2) * n1 + (renderer.info.render.frame / 30);
+
+        let newX = pupil_initX[p] + 0.7*Math.cos(a1);
+        let newY = pupil_initY[p] + 0.7*Math.sin(a1);
+
+        pupil_mesh.geometry.getAttribute('position').setXY(p, newX, newY);
+    }
+    pupil_mesh.geometry.getAttribute('position').needsUpdate = true;
+}
+
+
+// text info
+// fix reflexo
