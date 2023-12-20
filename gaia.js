@@ -3,6 +3,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 //Noise Usage from Guillaume Mourier (@ledoublegui)
 
+let numberSpecies = 200000;
+let extinctionRate = 10000;
+let interactionTimer = 0;
+let extinctCounter = 0;
+
 let scene, camera, renderer, controls, ambientLight;
 let cam_coords, cam_theta, cam_phi;
 let noise, noise_set, eye_set;
@@ -152,7 +157,7 @@ async function getVideo() {
 function init() {
     eye_set = {
         eye_radius: 100,
-        particle_number: 50000,
+        particle_number: numberSpecies,
         particle_color: 0xffffff,
         particle_size: 0.4,
         tunnel_radius: 100,
@@ -166,11 +171,6 @@ function init() {
         scnd_distance: 250,
         hello_counter: 0,
     }
-
-    const line_colors = new Float32Array([
-        1.0, 1.0, 1.0,
-        0.0, 0.0, 0.0
-    ]);
 
     //Scene + Camera + Render
     scene = new THREE.Scene();
@@ -238,6 +238,7 @@ function init() {
     }
     //PARTICLES
     part_geom = new THREE.BufferGeometry();
+    const part_colors = new Float32Array(3*eye_set.particle_number);
     for (let p = 0; p < eye_set.particle_number; p++) {
         theta[p] = THREE.MathUtils.randFloat(eye_set.theta_min, eye_set.theta_max); //0.3-2.5
         phi[p] = THREE.MathUtils.randFloatSpread(eye_set.phi_max);
@@ -247,13 +248,15 @@ function init() {
         init_z[p] = THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius_multipliter * eye_set.tunnel_radius);
 
         part_vert.push(init_x[p], init_y[p], init_z[p]);
+
+        for(let col = 0; col < 3; col++) part_colors[col*p] = 1.0;
     }
-    part_geom.setAttribute('position', new THREE.Float32BufferAttribute(part_vert, 3));
-    part_geom.setAttribute('color', new THREE.BufferAttribute(line_colors, 3));
     let part_mat = new THREE.PointsMaterial({
-        color: eye_set.particle_color,
+        vertexColors: true,
         size: eye_set.particle_size
     });
+    part_geom.setAttribute('position', new THREE.Float32BufferAttribute(part_vert, 3));
+    part_geom.setAttribute('color', new THREE.Float32BufferAttribute(part_colors, 3));
     part_points = new THREE.Points(part_geom, part_mat);
     scene.add(part_points);
 
@@ -286,6 +289,7 @@ function init() {
     cameraMat = new THREE.MeshPhongMaterial();
     cameraMat.map = cameraText;
 
+    console.log(part_geom);
 
 }
 
@@ -324,6 +328,10 @@ const animate = (t) => {
 
         pupil_mesh.material = pupil_mat;
         pupil_mesh.material.needsUpdate = true;
+
+        interactionTimer++;
+        if(interactionTimer % 30 == 0) goExtinct();
+        console.log(interactionTimer);
     }
     else if (state == 3) { //eye mirror
         //follow();
@@ -333,6 +341,8 @@ const animate = (t) => {
         cameraText.needsUpdate = true;
         pupil_mesh.material.needsUpdate = true;
         pupilDeform();
+
+        interactionTimer+=(1/30);
     }
     renderer.render(scene, camera);
     console.log(state);
@@ -502,6 +512,26 @@ function pupilDeform() {
         pupil_mesh.geometry.getAttribute('position').setXY(p, newX, newY);
     }
     pupil_mesh.geometry.getAttribute('position').needsUpdate = true;
+}
+
+//let extinctionTimer = 0;
+//let particleExtinctSize = [];
+//for(let e = 0; e < extinctionRate; e++) particleExtinctSize[e] = 0;
+
+let extinct_today = document.getElementById('extinct_today');
+
+function goExtinct(){
+        for(let e = 0; e < extinctionRate; e++){
+            let randPart = THREE.MathUtils.randFloat(0, part_points.geometry.attributes.size.array.length);
+            /*if(extinctionTimer < 60){
+                particleExtinctSize[e]++;
+                part_points.geometry.setAttribute('size', particleExtinctSize[e]);
+            }*/
+            part_points.geometry.attributes.size.array[randPart] = 0;
+            extinctCounter++;
+            extinct_today.innerHTML = '<b>' + extinctCounter + '</b> species became extinct today.';
+        }
+        part_points.geometry.attributes.size.needsUpdate = true;
 }
 
 
