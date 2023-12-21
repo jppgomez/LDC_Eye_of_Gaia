@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 //Noise Usage from Guillaume Mourier (@ledoublegui)
 
-let reduceFactor = 100
+let reduceFactor = 100;
 let numberSpecies = parseInt(2153294 / reduceFactor); //2 153 294 / 100
 //Data - Vertebrates
 let colorVert = [
@@ -22,14 +22,14 @@ let nFishes = parseInt(36367 / reduceFactor);
 let nVert = nMammals + nBirds + nReptiles + nAmphibians + nFishes;
 //Data - Invertebrates
 let colorInvert = [
-    {red:255/255, green: 189/255, blue: 56/255},    
-    {red:255/255, green: 165/255, blue: 64/255},
-    {red:255/255, green: 213/255, blue: 56/255},
-    {red:255/255, green: 126/255, blue: 56/255},
-    {red:255/255, green: 237/255, blue: 56/255},
-    {red:255/255, green: 97/255, blue: 64/255},
-    {red:255/255, green: 56/255, blue: 56/255},
-    {red:229/255, green: 255/255, blue: 56/255},
+    {red:255/255, green: 219/255, blue: 179/255},    
+    {red:255/255, green: 239/255, blue: 179/255},
+    {red:255/255, green: 206/255, blue: 179/255},
+    {red:255/255, green: 230/255, blue: 179/255},
+    {red:255/255, green: 248/255, blue: 179/255},
+    {red:245/255, green: 255/255, blue: 179/255},
+    {red:213/255, green: 255/255, blue: 179/255},
+    {red:179/255, green: 255/255, blue: 203/255},
 ];
 let nInsects = parseInt(1053578 / reduceFactor);
 let nMolluscs = parseInt(86254 / reduceFactor);
@@ -70,7 +70,7 @@ let nBrownAlgae = parseInt(4630 / reduceFactor);
 
 let nFungiProtists = nLichens + nMushrooms + nBrownAlgae;
 
-let extinctionRate = 170; //170 extinctions per day (second)
+let extinctionRate = 170; //170 extinctions per day (2 point per second)
 let interactionTimer = 0;
 let extinctCounter = 0;
 
@@ -95,6 +95,19 @@ let eyelid_posZ, eyelidTop, eyelidBottom, eyelid_material, eyelidT_mesh, eyelidB
 
 let pupil_geom, pupil_mat, pupil_mesh, pupil_initX = [], pupil_initY = [];
 let cameraText, cameraMat;
+
+//loading
+THREE.DefaultLoadingManager.onStart = function(url, itemsLoaded, itemsTotal){
+    document.querySelector("body").style.visibility = "hidden";
+    document.querySelector("#loader").style.visibility = "visible";
+    document.querySelector("body").style.overflowY = "hidden";  
+}
+THREE.DefaultLoadingManager.onLoad = function(){
+   document.querySelector("#loader").style.display = "none";
+   document.querySelector("body").style.visibility = "visible";
+   document.querySelector("body").style.overflowY = "initial"; 
+   document.getElementById("caption").style.display = "flex";
+}
 
 //onload create detection + video
 document.addEventListener('DOMContentLoaded', () => {
@@ -225,7 +238,7 @@ function init() {
         eye_radius: 100,
         particle_number: numberSpecies,
         particle_color: 0xffffff,
-        particle_size: 1,
+        particle_size: 1.35,
         tunnel_radius: 100,
         tunnel_radius_multipliter: 4,
         theta_min: 0.25,
@@ -343,7 +356,7 @@ function init() {
         //OTHER - CATCH ERRORS
         if(p >= nVert + nInvert + nPlants + nFungiProtists) part_col.push(1,1,1);
     }
-    const part_txt = new THREE.TextureLoader().load("shape.png");
+    const part_txt = new THREE.TextureLoader().load("./static/shape.png");
     part_geom.setAttribute('color', new THREE.Float32BufferAttribute(part_col, 3));
     let part_mat = new THREE.PointsMaterial({
         map: part_txt,
@@ -407,8 +420,10 @@ const animate = (t) => {
 
         }
         part_points.geometry.getAttribute('position').needsUpdate = true;
+        part_points.geometry.setDrawRange(0, eye_set.particle_number - parseInt(extinctCounter/reduceFactor));
     }
     else if (state == 1) { //eye build + say hello
+        document.getElementById("extinct_today").style.display = "block";
         transition_0_1();
     }
     else if (state == 2) { //eye follow
@@ -424,10 +439,12 @@ const animate = (t) => {
         pupil_mesh.material.needsUpdate = true;
 
         interactionTimer++;
-        if(interactionTimer % 30 == 0) goExtinct();
+        if(interactionTimer % 30 == 0){
+            goExtinct();  
+        } 
         //console.log(interactionTimer);
-        part_points.geometry.setDrawRange(0, eye_set.particle_number - extinctCounter);
-        console.log(eye_set.particle_number - extinctCounter);
+        part_points.geometry.setDrawRange(0, eye_set.particle_number - parseInt(extinctCounter/reduceFactor));
+        //console.log(eye_set.particle_number - extinctCounter);
     }
     else if (state == 3) { //eye mirror
         //follow();
@@ -438,7 +455,13 @@ const animate = (t) => {
         pupil_mesh.material.needsUpdate = true;
         pupilDeform();
 
-        interactionTimer+=(1/30);
+        document.getElementById('responsability').style.display = 'block';
+        interactionTimer++;
+        if(interactionTimer % 30 == 0){
+            goExtinct();  
+        } 
+
+        part_points.geometry.setDrawRange(0, eye_set.particle_number - parseInt(extinctCounter/reduceFactor));
     }
     renderer.render(scene, camera);
     console.log(state);
@@ -476,6 +499,8 @@ function transition_0_1() {
 }
 
 function transition_2_0() {
+    interactionTimer = 0;
+
     if (eye_set.hello_counter < 24 && eye_set.hello_counter != 0) shake();
 
     scene.remove(pupil_mesh);
@@ -501,6 +526,9 @@ function transition_2_0() {
 
     camera.position.set(cam_coords.x, cam_coords.y, cam_coords.z);
     camera.lookAt(0, 0, 0);
+
+    document.getElementById('extinct_today').style.display = 'none';
+    document.getElementById('responsability').style.display = 'none';
 }
 
 //MAP FUNCTION
@@ -607,28 +635,16 @@ function pupilDeform() {
     pupil_mesh.geometry.getAttribute('position').needsUpdate = true;
 }
 
-//let extinctionTimer = 0;
-//let particleExtinctSize = [];
-//for(let e = 0; e < extinctionRate; e++) particleExtinctSize[e] = 0;
-
-let extinct_today = document.getElementById('extinct_today');
-
 function goExtinct(){
-    console.log(part_points.geometry);
-
-        for(let e = 0; e < extinctionRate; e++){
-            //let randPart = THREE.MathUtils.randFloat(0, part_points.geometry.attributes.size.array.length);
-            /*if(extinctionTimer < 60){
-                particleExtinctSize[e]++;
-                part_points.geometry.setAttribute('size', particleExtinctSize[e]);
-            }*/
-            extinctCounter++;
-            extinct_today.innerHTML = '<b>' + extinctCounter + '</b> species became extinct today.';
+    if(extinctCounter < (numberSpecies*reduceFactor)){
+           for(let e = 0; e < parseInt(extinctionRate/reduceFactor); e++){
+            extinctCounter+=170;
+            document.getElementById('extinct_today').innerHTML = '<b>' + extinctCounter + '</b> species became extinct </br> while someone was looking.';
+            document.getElementById('responsability').innerHTML = 'You were responsible for <b>' + (parseInt(interactionTimer/30)*extinctionRate) + '</b>.';
         }
     }
+    else window.location.reload();
+         
+    }
 
-
-// text info
-// fix reflexo
-// fix disppear rate
-//redo yellow color pallete
+    //visual fixes - text position (bottom) + particles
