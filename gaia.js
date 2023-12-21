@@ -3,8 +3,74 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 //Noise Usage from Guillaume Mourier (@ledoublegui)
 
-let numberSpecies = 200000;
-let extinctionRate = 10000;
+let reduceFactor = 100
+let numberSpecies = parseInt(2153294 / reduceFactor); //2 153 294 / 100
+//Data - Vertebrates
+let colorVert = [
+    {red:56/255, green: 132/255, blue: 255/255},    
+    {red:56/255, green: 195/255, blue: 255/255},
+    {red:107/255, green: 56/255, blue: 255/255},
+    {red:56/255, green: 70/255, blue: 255/255},
+    {red:56/255, green: 255/255, blue: 252/255},
+];
+let nMammals = parseInt(6631 / reduceFactor);
+let nBirds = parseInt(11197 / reduceFactor);
+let nReptiles = parseInt(12060 / reduceFactor);
+let nAmphibians = parseInt(8707 / reduceFactor);
+let nFishes = parseInt(36367 / reduceFactor);
+
+let nVert = nMammals + nBirds + nReptiles + nAmphibians + nFishes;
+//Data - Invertebrates
+let colorInvert = [
+    {red:255/255, green: 189/255, blue: 56/255},    
+    {red:255/255, green: 165/255, blue: 64/255},
+    {red:255/255, green: 213/255, blue: 56/255},
+    {red:255/255, green: 126/255, blue: 56/255},
+    {red:255/255, green: 237/255, blue: 56/255},
+    {red:255/255, green: 97/255, blue: 64/255},
+    {red:255/255, green: 56/255, blue: 56/255},
+    {red:229/255, green: 255/255, blue: 56/255},
+];
+let nInsects = parseInt(1053578 / reduceFactor);
+let nMolluscs = parseInt(86254 / reduceFactor);
+let nCrustaceans = parseInt(84382 / reduceFactor);
+let nCorals = parseInt(5614 / reduceFactor);
+let nArachnids = parseInt(92766 / reduceFactor);
+let nVelvetWorms = parseInt(210 / reduceFactor);
+let nHorseshoeCrabs = parseInt(4 / reduceFactor);
+let nOtherInv = parseInt(157543 / reduceFactor);
+
+let nInvert = nInsects + nMolluscs + nCrustaceans + nCorals + nArachnids + nVelvetWorms + nHorseshoeCrabs + nOtherInv;
+//Data - Plants
+let colorPlants = [
+    {red:62/255, green: 255/255, blue: 48/255},    
+    {red:149/255, green: 255/255, blue: 48/255},
+    {red:48/255, green: 255/255, blue: 178/255},
+    {red:48/255, green: 255/255, blue: 107/255},
+    {red:235/255, green: 255/255, blue: 107/255},
+    {red:48/255, green: 255/255, blue: 249/255},
+];
+let nMosses = parseInt(21925 / reduceFactor);
+let nFernsAllies = parseInt(11800 / reduceFactor);
+let nGymnosperms = parseInt(1113 / reduceFactor);
+let nFloweringPlants = parseInt(369000 / reduceFactor);
+let nGreenAlgae = parseInt(13644 / reduceFactor);
+let nRedAlgae = parseInt(7553 / reduceFactor);
+
+let nPlants = nMosses + nFernsAllies + nGymnosperms + nFloweringPlants + nGreenAlgae + nRedAlgae;
+//Data - FungiProtists
+let colorFungiProtists = [
+    {red:255/255, green: 56/255, blue: 169/255},    
+    {red:237/255, green: 56/255, blue: 255/255},
+    {red:255/255, green: 58/255, blue: 56/255},
+];
+let nLichens = parseInt(17000 / reduceFactor);
+let nMushrooms = parseInt(151316 / reduceFactor);
+let nBrownAlgae = parseInt(4630 / reduceFactor);
+
+let nFungiProtists = nLichens + nMushrooms + nBrownAlgae;
+
+let extinctionRate = 170; //170 extinctions per day (second)
 let interactionTimer = 0;
 let extinctCounter = 0;
 
@@ -14,7 +80,7 @@ let noise, noise_set, eye_set;
 
 let state = 0;
 
-let part_geom, part_points, part_vert = [], theta = [], phi = [], init_x = [], init_y = [], init_z = [];
+let part_geom, part_points, part_vert = [], part_col = [], theta = [], phi = [], init_x = [], init_y = [], init_z = [];
 
 //FACE DETECTION
 //Adapted from @bomanimc
@@ -159,7 +225,7 @@ function init() {
         eye_radius: 100,
         particle_number: numberSpecies,
         particle_color: 0xffffff,
-        particle_size: 0.4,
+        particle_size: 1,
         tunnel_radius: 100,
         tunnel_radius_multipliter: 4,
         theta_min: 0.25,
@@ -198,7 +264,7 @@ function init() {
     scene.add(ambientLight);
 
     //AXIS
-    let axis = true;
+    let axis = false;
     if (axis) {
         const xblue = new THREE.LineBasicMaterial({ color: 0x0000ff });
         const ygreen = new THREE.LineBasicMaterial({ color: 0x008000 });
@@ -238,7 +304,6 @@ function init() {
     }
     //PARTICLES
     part_geom = new THREE.BufferGeometry();
-    const part_colors = new Float32Array(3*eye_set.particle_number);
     for (let p = 0; p < eye_set.particle_number; p++) {
         theta[p] = THREE.MathUtils.randFloat(eye_set.theta_min, eye_set.theta_max); //0.3-2.5
         phi[p] = THREE.MathUtils.randFloatSpread(eye_set.phi_max);
@@ -248,15 +313,44 @@ function init() {
         init_z[p] = THREE.MathUtils.randFloatSpread(eye_set.tunnel_radius_multipliter * eye_set.tunnel_radius);
 
         part_vert.push(init_x[p], init_y[p], init_z[p]);
-
-        for(let col = 0; col < 3; col++) part_colors[col*p] = 1.0;
+        
+        //VERTEBRATES
+        if(p > 0 && p < nMammals) part_col.push(colorVert[0].red, colorVert[0].green, colorVert[0].blue);
+        else if(p > nMammals && p < nMammals + nBirds) part_col.push(colorVert[1].red, colorVert[1].green, colorVert[1].blue);
+        else if(p > nMammals + nBirds && p < nMammals+ nBirds + nReptiles) part_col.push(colorVert[2].red, colorVert[2].green, colorVert[2].blue);
+        else if(p > nMammals+ nBirds + nReptiles && p < nMammals + nBirds + nReptiles + nAmphibians) part_col.push(colorVert[3].red, colorVert[3].green, colorVert[3].blue);
+        else if(p > nMammals + nBirds + nReptiles + nAmphibians && p < nVert) part_col.push(colorVert[4].red, colorVert[4].green, colorVert[4].blue);
+        //INVERTEBRATES
+        if(p > nVert && p < nVert + nInsects) part_col.push(colorInvert[0].red, colorInvert[0].green, colorInvert[0].blue);
+        else if(p > nVert + nInsects && p < nVert + nInsects + nMolluscs) part_col.push(colorInvert[1].red, colorInvert[1].green, colorInvert[1].blue);
+        else if(p > nVert + nInsects + nMolluscs && p < nVert + nInsects + nMolluscs + nCrustaceans) part_col.push(colorInvert[2].red, colorInvert[2].green, colorInvert[2].blue);
+        else if(p > nVert + nInsects + nMolluscs + nCrustaceans && p < nVert + nInsects + nMolluscs + nCrustaceans + nCorals) part_col.push(colorInvert[3].red, colorInvert[3].green, colorInvert[3].blue);
+        else if(p > nVert + nInsects + nMolluscs + nCrustaceans + nCorals && p < nVert + nInsects + nMolluscs + nCrustaceans + nCorals + nArachnids) part_col.push(colorInvert[4].red, colorInvert[4].green, colorInvert[4].blue);
+        else if(p > nVert + nInsects + nMolluscs + nCrustaceans + nCorals + nArachnids && p < nVert + nInsects + nMolluscs + nCrustaceans + nCorals + nArachnids + nVelvetWorms) part_col.push(colorInvert[5].red, colorInvert[5].green, colorInvert[5].blue);
+        else if(p > nVert + nInsects + nMolluscs + nCrustaceans + nCorals + nArachnids + nVelvetWorms && p < nVert + nInsects + nMolluscs + nCrustaceans + nCorals + nArachnids + nVelvetWorms + nHorseshoeCrabs) part_col.push(colorInvert[6].red, colorInvert[6].green, colorInvert[6].blue);
+        else if(p > nVert + nInvert - nOtherInv && p < nVert + nInvert) part_col.push(colorInvert[7].red, colorInvert[7].green, colorInvert[7].blue);
+        //PLANTS
+        if(p > nVert + nInvert && p < nVert + nInvert + nMosses) part_col.push(colorPlants[0].red, colorPlants[0].green, colorPlants[0].blue);
+        else if(p > nVert + nInvert + nMosses && p < nVert + nInvert + nMosses + nFernsAllies) part_col.push(colorPlants[1].red, colorPlants[1].green, colorPlants[1].blue);
+        else if(p > nVert + nInvert + nMosses + nFernsAllies && p < nVert + nInvert + nMosses + nFernsAllies + nGymnosperms) part_col.push(colorPlants[2].red, colorPlants[2].green, colorPlants[2].blue);
+        else if(p > nVert + nInvert + nMosses + nFernsAllies + nGymnosperms && p < nVert + nInvert + nMosses + nFernsAllies + nGymnosperms + nFloweringPlants) part_col.push(colorPlants[3].red, colorPlants[3].green, colorPlants[3].blue);
+        else if(p > nVert + nInvert + nMosses + nFernsAllies + nGymnosperms + nFloweringPlants && p < nVert + nInvert + nMosses + nFernsAllies + nGymnosperms + nFloweringPlants + nGreenAlgae) part_col.push(colorPlants[4].red, colorPlants[4].green, colorPlants[4].blue);
+        else if(p > nVert + nInvert + nPlants - nRedAlgae && p < nVert + nInvert + nPlants) part_col.push(colorPlants[5].red, colorPlants[5].green, colorPlants[5].blue);
+        //FUNGI & PROTISTS
+        if(p > nVert + nInvert + nPlants && p < nVert + nInvert + nPlants + nLichens) part_col.push(colorFungiProtists[0].red, colorFungiProtists[0].green, colorFungiProtists[0].blue);
+        else if(p > nVert + nInvert + nPlants + nLichens && p < nVert + nInvert + nPlants + nLichens + nMushrooms) part_col.push(colorFungiProtists[1].red, colorFungiProtists[1].green, colorFungiProtists[1].blue);
+        else if(p > nVert + nInvert + nPlants + nFungiProtists - nBrownAlgae && p < nVert + nInvert + nPlants + nFungiProtists) part_col.push(colorFungiProtists[2].red, colorFungiProtists[2].green, colorFungiProtists[2].blue);
+        //OTHER - CATCH ERRORS
+        if(p >= nVert + nInvert + nPlants + nFungiProtists) part_col.push(1,1,1);
     }
+    const part_txt = new THREE.TextureLoader().load("shape.png");
+    part_geom.setAttribute('color', new THREE.Float32BufferAttribute(part_col, 3));
     let part_mat = new THREE.PointsMaterial({
+        map: part_txt,
         vertexColors: true,
         size: eye_set.particle_size
     });
     part_geom.setAttribute('position', new THREE.Float32BufferAttribute(part_vert, 3));
-    part_geom.setAttribute('color', new THREE.Float32BufferAttribute(part_colors, 3));
     part_points = new THREE.Points(part_geom, part_mat);
     scene.add(part_points);
 
@@ -264,7 +358,7 @@ function init() {
     eyelid_posZ = -3 * eye_set.eye_radius;
     eyelidTop = new THREE.BoxGeometry(2.5 * eye_set.eye_radius, 2.5 * eye_set.eye_radius, 2.5 * eye_set.eye_radius);
     eyelidBottom = new THREE.BoxGeometry(2.5 * eye_set.eye_radius, 2.5 * eye_set.eye_radius, 2.5 * eye_set.eye_radius);
-    eyelid_material = new THREE.MeshBasicMaterial({ color: 0x000000, size: THREE.DoubleSide });
+    eyelid_material = new THREE.MeshBasicMaterial({ color: 0x000000});
     eyelidT_mesh = new THREE.Mesh(eyelidTop, eyelid_material);
     eyelidB_mesh = new THREE.Mesh(eyelidBottom, eyelid_material);
     eyelidT_mesh.position.set(0, eyelid_posZ, 0);
@@ -289,7 +383,7 @@ function init() {
     cameraMat = new THREE.MeshPhongMaterial();
     cameraMat.map = cameraText;
 
-    console.log(part_geom);
+    //console.log(part_geom);
 
 }
 
@@ -331,7 +425,9 @@ const animate = (t) => {
 
         interactionTimer++;
         if(interactionTimer % 30 == 0) goExtinct();
-        console.log(interactionTimer);
+        //console.log(interactionTimer);
+        part_points.geometry.setDrawRange(0, eye_set.particle_number - extinctCounter);
+        console.log(eye_set.particle_number - extinctCounter);
     }
     else if (state == 3) { //eye mirror
         //follow();
@@ -407,13 +503,11 @@ function transition_2_0() {
     camera.lookAt(0, 0, 0);
 }
 
-
 //MAP FUNCTION
 function mapValue(value, minI, maxI, minF, maxF) {
     value = (value - minI) / (maxI - minI);
     return minF + value * (maxF - minF);
 }
-
 
 function particleDeform() {
     let n1;
@@ -499,7 +593,6 @@ function thresholdFilter(
     return imgData;
 };
 
-
 function pupilDeform() {
     let n1;
     for (let p = 0; p < pupil_mesh.geometry.getAttribute('position').count; p++) {
@@ -521,19 +614,21 @@ function pupilDeform() {
 let extinct_today = document.getElementById('extinct_today');
 
 function goExtinct(){
+    console.log(part_points.geometry);
+
         for(let e = 0; e < extinctionRate; e++){
-            let randPart = THREE.MathUtils.randFloat(0, part_points.geometry.attributes.size.array.length);
+            //let randPart = THREE.MathUtils.randFloat(0, part_points.geometry.attributes.size.array.length);
             /*if(extinctionTimer < 60){
                 particleExtinctSize[e]++;
                 part_points.geometry.setAttribute('size', particleExtinctSize[e]);
             }*/
-            part_points.geometry.attributes.size.array[randPart] = 0;
             extinctCounter++;
             extinct_today.innerHTML = '<b>' + extinctCounter + '</b> species became extinct today.';
         }
-        part_points.geometry.attributes.size.needsUpdate = true;
-}
+    }
 
 
 // text info
 // fix reflexo
+// fix disppear rate
+//redo yellow color pallete
