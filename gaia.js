@@ -79,6 +79,7 @@ let cam_coords, cam_theta, cam_phi;
 let noise, noise_set, eye_set;
 
 let state = 0;
+let transition_0_2 = false;
 
 let part_geom, part_points, part_vert = [], part_col = [], theta = [], phi = [], init_x = [], init_y = [], init_z = [];
 
@@ -88,6 +89,7 @@ let part_geom, part_points, part_vert = [], part_col = [], theta = [], phi = [],
 let faceapi, video;
 let canvas, context, cam_width = 426, cam_height = 240;
 let faceX, faceY, faceSize;
+let numFaces = 0;
 
 let filterThreshold = 70; //adjust according to lighting conditions - possible time map for daylight
 
@@ -171,6 +173,7 @@ function getResults(err, result) {
     canvas.style.display = 'none';
 
     if (result) {
+        numFaces = result.length;
         if (result.length > 0) {
             let faceBoxX, faceBoxY, faceBoxW = 0, faceBoxH = 0;
             for (let r = 0; r < result.length; r++) {
@@ -194,6 +197,7 @@ function getResults(err, result) {
         }
     }
     else {
+        numFaces = 0;
         faceX = undefined;
         faceY = undefined;
         //faceSize = undefined;
@@ -404,6 +408,13 @@ function init() {
 const animate = (t) => {
     requestAnimationFrame(animate);
 
+    if(numFaces == 0) state = 0;
+    else if(numFaces > 0){
+        if(transition_0_2 == false) state = 1;
+        else if(transition_0_2 == true && interactionTimer < 10000) state = 2;
+        else if(state = 2 && interactionTimer >= 10000) state = 3;
+    }
+
     if (state == 0) { //particle field
         transition_2_0();
 
@@ -487,6 +498,7 @@ function transition_0_1() {
             eye_set.hello_counter = 0;
             scene.add(pupil_mesh);
             state = 2;
+            transition_0_2 = true;
         }
     }
 
@@ -499,6 +511,7 @@ function transition_0_1() {
 }
 
 function transition_2_0() {
+    transition_0_2 = false;
     interactionTimer = 0;
 
     if (eye_set.hello_counter < 24 && eye_set.hello_counter != 0) shake();
