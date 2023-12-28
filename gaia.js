@@ -207,7 +207,7 @@ function getResults(err, result) {
             resultToleranceTimer += 1;
         }
    
-    if(resultToleranceTimer > 15){ //if face is not recognized reset variables
+    if(resultToleranceTimer > 10){ //if face is not recognized reset variables
         numFaces = 0;
         faceX = undefined;
         faceY = undefined;
@@ -433,7 +433,7 @@ const animate = (t) => {
     else if(numFaces > 0){ //1+ = eye
         if(transition_0_2 == false) state = 1; //build eye - transition 
         else if(transition_0_2 == true && interactionTimer < 1000) state = 2; //eye follow + remove particles
-        else if(interactionTimer >= 1000) state = 3; //eye stop follow (stare) - show reflex
+        else if(interactionTimer >= 750) state = 3; //eye stop follow (stare) - show reflex
     }
 
     if (state == 0) { //particle field / tunnel
@@ -701,7 +701,3 @@ function goExtinct(){ //update labels with number of extinct particles
     else window.location.reload(); //if total value is surpassed reset everything
          
     }
-
-    
-    
-    //visual fixes - text position (bottom) + particles
