@@ -93,6 +93,7 @@ let faceapi, video;
 let canvas, context, cam_width = 426, cam_height = 240; //240p
 let faceX, faceY, faceSize;
 let numFaces = 0;
+let resultToleranceTimer = 0; //tolerance timer to avoid malfunctions on face recognition
 
 let filterThreshold = 70; //adjust according to lighting conditions - (possible time map for daylight adjustment)
 
@@ -113,6 +114,8 @@ THREE.DefaultLoadingManager.onLoad = function(){
    document.querySelector("body").style.visibility = "visible";
    document.querySelector("body").style.overflowY = "initial"; 
    document.getElementById("caption").style.display = "flex";
+   document.getElementById("bg_audio").volume = 0.3;
+   document.getElementById("bg_audio").play();
 }
 
 //onload create detection + video
@@ -126,7 +129,6 @@ window.addEventListener('resize', function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 });
-
 
 //create and trigger detection
 async function createDetection() {
@@ -176,9 +178,9 @@ function getResults(err, result) {
     //hide canvas
     canvas.style.display = 'none';
     //handle face detection results
-    if (result) {
-        numFaces = result.length; //get number of recognized faces
-        if (result.length > 0) {
+    if (result && result.length > 0) {
+            numFaces = result.length; //get number of recognized faces
+            resultToleranceTimer = 0; //reset non-recognition tolerance
             let faceBoxX, faceBoxY, faceBoxW = 0, faceBoxH = 0; //face variables
             //get bigger face recognized and assign parameters to faceBox variables
             for (let r = 0; r < result.length; r++) {
@@ -201,9 +203,11 @@ function getResults(err, result) {
                 //faceSize = ((faceBoxW * window.innerWidth) / cam_width) * ((faceBoxH * window.innerHeight) / cam_height);
                 //console.log(faceX, faceY);
             }
+        } else { //catch non-recognition - handle misrecognition (avoid quick shifting)
+            resultToleranceTimer += 1;
         }
-    } //catch non-recognition
-    else {
+   
+    if(resultToleranceTimer > 15){ //if face is not recognized reset variables
         numFaces = 0;
         faceX = undefined;
         faceY = undefined;
@@ -418,7 +422,6 @@ function init() {
     cameraMat.map = cameraText;
 
             //console.log(part_geom);(debug)
-
 }
 
 //Loop Function - Draw Scene Every Time Screen is Refreshed -> Only when user is in page
@@ -429,8 +432,8 @@ const animate = (t) => {
     if(numFaces == 0) state = 0; //none = tunner
     else if(numFaces > 0){ //1+ = eye
         if(transition_0_2 == false) state = 1; //build eye - transition 
-        else if(transition_0_2 == true && interactionTimer < 10000) state = 2; //eye follow + remove particles
-        else if(state = 2 && interactionTimer >= 10000) state = 3; //eye stop follow (stare) - show reflex
+        else if(transition_0_2 == true && interactionTimer < 1000) state = 2; //eye follow + remove particles
+        else if(interactionTimer >= 1000) state = 3; //eye stop follow (stare) - show reflex
     }
 
     if (state == 0) { //particle field / tunnel
@@ -522,8 +525,8 @@ const animate = (t) => {
 //TRANSITIONS - between states
 function transition_0_1() { //eye build (from tunnel to eye)
     //transition audio play - whoosh sfx
-    let transition_audio = document.getElementById("transition_audio");
-    if(transition_audio.currentTime = 0) transition_audio.play();
+    document.getElementById("transition_audio").volume = 0.4;
+    if(cam_coords.z == eye_set.frst_distance) document.getElementById("transition_audio").play();
 
     if (cam_coords.z < eye_set.scnd_distance) { //camera move out - gradually
         cam_coords.z += 10;
@@ -699,4 +702,6 @@ function goExtinct(){ //update labels with number of extinct particles
          
     }
 
+    
+    
     //visual fixes - text position (bottom) + particles
