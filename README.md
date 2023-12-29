@@ -13,14 +13,14 @@ a message of despair with the future of our world.
 Therefore, this project aims to create an intimate relation between viewer and art piece, through the creation of a narrative/time-based interaction between an eye-shaped particle system (where each particle represents an individual specie) and a human viewer,
 as they look at eachother back and forth, leading to a bidirectional message exchange, hopefully contributing to a better future for both parts.
 Further information regarding technical aspects of the project are detailed below. Information regarding the conceptual decisions made throughout the development of the project, as well as information related to a more detailed explanation of its behaviour can be found 
-on the article available [here]().
+on the article available [here](res/invisible_sight.pdf).
 
 ### Technical Implementation
 This project was developed using HTML and JavaScript in order to enable both the creation of a Web-based and digital exhibition experience, both based on the same piece of code.
-The deployed version of the project can be found [here]() in a near future, so everyone can run and experience the project in their own devices. On the other hand the digital exhibition version
+The deployed version of the project can be found [here](build) (in a near future), so everyone can run and experience the project in their own devices. On the other hand the digital exhibition version
 will be hopefully available as part of the [FeedNPlay](https://feednplay.dei.uc.pt/) project, located in the Department of Informatics Engineering of the University of Coimbra. 
 
-![example placedholder image](res/placeholder.png)
+![The Eye of Gaia](res/gaia.png)
 
 ## Getting Started
 
