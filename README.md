@@ -18,7 +18,7 @@ on the article available [here]().
 ### Technical Implementation
 This project was developed using HTML and JavaScript in order to enable both the creation of a Web-based and digital exhibition experience, both based on the same piece of code.
 The deployed version of the project can be found [here]() in a near future, so everyone can run and experience the project in their own devices. On the other hand the digital exhibition version
-will be hopefully available as part of the FeedNPlay project, located in the Department of Informatics Engineering of the University of Coimbra. 
+will be hopefully available as part of the [FeedNPlay](https://feednplay.dei.uc.pt/) project, located in the Department of Informatics Engineering of the University of Coimbra. 
 
 ![example placedholder image](res/placeholder.png)
 
@@ -40,17 +40,17 @@ $ npm install --save-dev vite
 
 ## Usage
 
-To install and test the project simply run the following command, from the [src folder](/src) in the terminal:
+To install and test the project simply run the following command, from the [src folder](src/) in the terminal:
 ```bash
 $ npx vite
 ```
 Or visit the link available in the [Technical Implementation](#Technical-Implementation) section.
 
 ## Code of Conduct
-> We expect everyone participating in our project to follow a Code of Conduct. Please read it [here](CODE_OF_CONDUCT.md).
+We expect everyone participating in our project to follow a Code of Conduct. Please read it [here](CODE_OF_CONDUCT.md).
 
 ## License
-> This project is licensed under the `MIT License` - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the `MIT License` - see the [LICENSE](LICENSE) file for details.
 
 ## Credits
 This project was developed for the Computational Design Laboratory course unit of the MSc of Design and Multimedia of the University of Coimbra, by [João P. Gomes](https://github.com/jppgomez) (design and development)
