@@ -19,7 +19,7 @@ on the article available [here](res/invisible_sight.pdf).
 
 ### Technical Implementation
 This project was developed using HTML and JavaScript in order to enable both the creation of a Web-based and digital exhibition experience, both based on the same piece of code.
-The deployed version of the project can be found [here](build) (in a near future), so everyone can run and experience the project in their own devices. On the other hand the digital exhibition version
+The deployed version of the project can be found [here](https://student.dei.uc.pt/~joaogomes/LDC_Eye_of_Gaia/), so everyone can run and experience the project in their own devices. On the other hand the digital exhibition version
 will be hopefully available as part of the [FeedNPlay](https://feednplay.dei.uc.pt/) project, located in the Department of Informatics Engineering of the University of Coimbra. 
 
 ## Getting Started
