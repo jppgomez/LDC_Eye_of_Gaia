@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
-//Noise Usage from Guillaume Mourier (@ledoublegui)
+//Noise Usage from Guillaume Mourier (@ledoublegui) - https://github.com/gmourier/fields
 
 //Data - Source Handle
 let reduceFactor = 100;
