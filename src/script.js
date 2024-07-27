@@ -240,7 +240,10 @@ async function getVideo() {
     video.height = cam_height;
     document.body.appendChild(video);
     //setup camera as video source
-    const camera = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    //console.log(await navigator.mediaDevices.enumerateDevices()); //uncomment to get selected device id
+    const camera = await navigator.mediaDevices.getUserMedia({ video: {
+        deviceId: 'd379a6c89905816bd363295157190a87ccd439d7cde00cef0048c6043fb2238e' //add selected device id
+    }, audio: false });
     video.srcObject = camera;
     video.play();
 
